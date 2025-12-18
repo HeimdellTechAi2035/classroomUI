@@ -1,0 +1,575 @@
+/* Import Inter font - must be first */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ========================================
+   Modern Premium Design System
+   RemoteAbility Classroom
+   ======================================== */
+
+/* ========================================
+   Base Styles
+   ======================================== */
+@layer base {
+  :root {
+    --gradient-primary: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
+    --gradient-accent: linear-gradient(135deg, #d946ef 0%, #0ea5e9 100%);
+    --gradient-success: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+    --gradient-warm: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+    --gradient-dark: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    --glass-bg: rgba(255, 255, 255, 0.8);
+    --glass-border: rgba(255, 255, 255, 0.2);
+  }
+
+  * {
+    @apply border-calm-200;
+  }
+
+  html {
+    @apply antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-calm-50 text-calm-800 font-sans;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(14, 165, 233, 0.03) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(217, 70, 239, 0.03) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  /* Better focus styles */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-primary-500 ring-offset-2 ring-offset-white;
+  }
+
+  /* Selection color */
+  ::selection {
+    @apply bg-primary-500/20 text-primary-900;
+  }
+}
+
+/* ========================================
+   Typography
+   ======================================== */
+@layer components {
+  .heading-1 {
+    @apply text-3xl font-bold text-calm-900 tracking-tight;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .heading-2 {
+    @apply text-2xl font-semibold text-calm-800 tracking-tight;
+  }
+
+  .heading-3 {
+    @apply text-xl font-semibold text-calm-800;
+  }
+
+  .text-gradient {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-accent {
+    background: var(--gradient-accent);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
+
+/* ========================================
+   Buttons
+   ======================================== */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm
+           transition-all duration-200 ease-out
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+    letter-spacing: -0.01em;
+  }
+
+  .btn-primary {
+    @apply btn text-white shadow-lg shadow-primary-500/25;
+    background: var(--gradient-primary);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    @apply shadow-xl shadow-primary-500/30 -translate-y-0.5;
+  }
+
+  .btn-primary:active:not(:disabled) {
+    @apply translate-y-0 shadow-lg;
+  }
+
+  .btn-secondary {
+    @apply btn bg-white text-calm-700 border border-calm-200 shadow-sm;
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    @apply bg-calm-50 border-calm-300 shadow -translate-y-0.5;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent text-calm-600;
+  }
+
+  .btn-ghost:hover:not(:disabled) {
+    @apply bg-calm-100 text-calm-800;
+  }
+
+  .btn-success {
+    @apply btn text-white shadow-lg shadow-success-500/25;
+    background: var(--gradient-success);
+  }
+
+  .btn-success:hover:not(:disabled) {
+    @apply shadow-xl shadow-success-500/30 -translate-y-0.5;
+  }
+
+  .btn-danger {
+    @apply btn bg-danger-500 text-white shadow-lg shadow-danger-500/25;
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    @apply bg-danger-600 shadow-xl shadow-danger-500/30 -translate-y-0.5;
+  }
+
+  .btn-lg {
+    @apply px-7 py-3.5 text-base rounded-2xl;
+  }
+
+  .btn-sm {
+    @apply px-3.5 py-1.5 text-xs rounded-lg;
+  }
+
+  .btn-icon {
+    @apply p-2.5 rounded-xl hover:bg-calm-100 text-calm-500 hover:text-calm-700 transition-colors;
+  }
+}
+
+/* ========================================
+   Cards & Surfaces
+   ======================================== */
+@layer components {
+  .card {
+    @apply bg-white rounded-2xl border border-calm-200/60 p-6 
+           shadow-sm transition-all duration-300 ease-out relative overflow-hidden;
+  }
+
+  .card:hover {
+    @apply shadow-card-hover border-calm-300/60 -translate-y-0.5;
+  }
+
+  .card-glass {
+    @apply rounded-2xl p-6 backdrop-blur-xl border transition-all duration-300;
+    background: var(--glass-bg);
+    border-color: var(--glass-border);
+  }
+
+  .card-gradient {
+    @apply card;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%);
+  }
+
+  .card-dark {
+    @apply rounded-2xl p-6 text-white border border-calm-700/50;
+    background: var(--gradient-dark);
+  }
+
+  .surface {
+    @apply bg-calm-50/50 rounded-xl p-4 border border-calm-100;
+  }
+}
+
+/* ========================================
+   Form Elements
+   ======================================== */
+@layer components {
+  .input-field {
+    @apply w-full px-4 py-3 bg-white border border-calm-200 rounded-xl text-calm-800
+           placeholder:text-calm-400
+           transition-all duration-200
+           focus:border-primary-400 focus:ring-4 focus:ring-primary-500/10 focus:outline-none;
+  }
+
+  .input-field:hover:not(:focus) {
+    @apply border-calm-300;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-calm-700 mb-2;
+  }
+
+  .input-group {
+    @apply relative;
+  }
+
+  .input-group .input-icon {
+    @apply absolute left-4 top-1/2 -translate-y-1/2 text-calm-400 pointer-events-none;
+  }
+
+  .input-group .input-field {
+    @apply pl-11;
+  }
+}
+
+/* ========================================
+   Badges & Tags
+   ======================================== */
+@layer components {
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold tracking-wide;
+  }
+
+  .badge-primary {
+    @apply badge bg-primary-100 text-primary-700;
+  }
+
+  .badge-success {
+    @apply badge bg-success-100 text-success-700;
+  }
+
+  .badge-warning {
+    @apply badge bg-warning-100 text-warning-700;
+  }
+
+  .badge-danger {
+    @apply badge bg-danger-100 text-danger-700;
+  }
+
+  .badge-neutral {
+    @apply badge bg-calm-100 text-calm-600;
+  }
+
+  .badge-gradient {
+    @apply badge text-white;
+    background: var(--gradient-primary);
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-medium bg-calm-100 text-calm-600;
+  }
+}
+
+/* ========================================
+   Navigation
+   ======================================== */
+@layer components {
+  .nav-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-calm-500 font-medium
+           transition-all duration-200 ease-out relative overflow-hidden;
+  }
+
+  .nav-item:hover {
+    @apply bg-calm-100/60 text-calm-700;
+  }
+
+  .nav-item-active {
+    @apply nav-item bg-primary-50 text-primary-600;
+  }
+
+  .nav-item-active::before {
+    content: '';
+    @apply absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full;
+    background: var(--gradient-primary);
+  }
+}
+
+/* ========================================
+   Status Indicators
+   ======================================== */
+@layer components {
+  .status-indicator {
+    @apply w-2.5 h-2.5 rounded-full;
+  }
+
+  .status-online {
+    @apply status-indicator bg-success-500 shadow-lg shadow-success-500/50;
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  .status-offline {
+    @apply status-indicator bg-calm-400;
+  }
+
+  .status-busy {
+    @apply status-indicator bg-warning-500 shadow-lg shadow-warning-500/50 animate-pulse;
+  }
+
+  .status-error {
+    @apply status-indicator bg-danger-500 shadow-lg shadow-danger-500/50 animate-pulse;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  }
+}
+
+/* ========================================
+   Tables
+   ======================================== */
+@layer components {
+  .table-modern {
+    @apply w-full text-left;
+  }
+
+  .table-modern thead {
+    @apply bg-calm-50/80 border-b border-calm-200;
+  }
+
+  .table-modern th {
+    @apply px-4 py-3 text-xs font-semibold text-calm-500 uppercase tracking-wider;
+  }
+
+  .table-modern td {
+    @apply px-4 py-4 text-sm text-calm-700 border-b border-calm-100;
+  }
+
+  .table-modern tbody tr {
+    @apply transition-colors duration-150;
+  }
+
+  .table-modern tbody tr:hover {
+    @apply bg-calm-50/50;
+  }
+}
+
+/* ========================================
+   Modals & Overlays
+   ======================================== */
+@layer components {
+  .modal-overlay {
+    @apply fixed inset-0 bg-calm-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4;
+  }
+
+  .modal {
+    @apply bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden
+           animate-scale-in;
+  }
+
+  .modal-header {
+    @apply px-6 py-4 border-b border-calm-100;
+  }
+
+  .modal-body {
+    @apply px-6 py-4 overflow-y-auto;
+  }
+
+  .modal-footer {
+    @apply px-6 py-4 border-t border-calm-100 flex items-center justify-end gap-3;
+  }
+}
+
+/* ========================================
+   Sidebar Styles
+   ======================================== */
+@layer components {
+  .sidebar {
+    @apply bg-white border-r border-calm-200/60 flex flex-col h-full;
+  }
+
+  .sidebar-header {
+    @apply p-5 border-b border-calm-100;
+  }
+
+  .sidebar-content {
+    @apply flex-1 overflow-y-auto p-3;
+  }
+
+  .sidebar-footer {
+    @apply p-4 border-t border-calm-100 bg-calm-50/50;
+  }
+}
+
+/* ========================================
+   Scrollbar Styling
+   ======================================== */
+@layer base {
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-calm-300 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-calm-400;
+  }
+}
+
+/* ========================================
+   Accessibility Settings
+   ======================================== */
+/* Font Size Scales */
+.font-size-normal { font-size: 100%; }
+.font-size-large { font-size: 112.5%; }
+.font-size-larger { font-size: 125%; }
+
+/* High Contrast Mode */
+.high-contrast {
+  --tw-text-opacity: 1;
+}
+
+.high-contrast body {
+  @apply bg-white text-calm-950;
+}
+
+.high-contrast .card {
+  @apply border-2 border-calm-900;
+}
+
+.high-contrast .btn-primary {
+  @apply bg-calm-900 text-white;
+}
+
+.high-contrast .nav-item-active {
+  @apply bg-calm-900 text-white;
+}
+
+/* Reduce Motion */
+.reduce-motion * {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* Dyslexia Font */
+.dyslexia-font {
+  font-family: 'OpenDyslexic', 'Comic Sans MS', sans-serif !important;
+  letter-spacing: 0.05em;
+  word-spacing: 0.1em;
+}
+
+/* ========================================
+   Utility Classes
+   ======================================== */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .glass {
+    @apply backdrop-blur-xl bg-white/80 border border-white/20;
+  }
+
+  .gradient-border {
+    position: relative;
+  }
+
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--gradient-primary);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    animation: shimmer 2s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+}
+
+/* ========================================
+   Prose / Rich Content
+   ======================================== */
+.prose-calm {
+  @apply text-calm-700 leading-relaxed;
+}
+
+.prose-calm h1 {
+  @apply text-2xl font-bold text-calm-900 mt-8 mb-4;
+}
+
+.prose-calm h2 {
+  @apply text-xl font-semibold text-calm-800 mt-6 mb-3;
+}
+
+.prose-calm h3 {
+  @apply text-lg font-semibold text-calm-800 mt-5 mb-2;
+}
+
+.prose-calm p {
+  @apply mb-4;
+}
+
+.prose-calm ul, .prose-calm ol {
+  @apply mb-4 pl-6;
+}
+
+.prose-calm li {
+  @apply mb-2;
+}
+
+.prose-calm ul li {
+  @apply list-disc;
+}
+
+.prose-calm ol li {
+  @apply list-decimal;
+}
+
+.prose-calm strong {
+  @apply font-semibold text-calm-800;
+}
+
+.prose-calm code {
+  @apply bg-calm-100 px-1.5 py-0.5 rounded text-sm font-mono text-primary-600;
+}
+
+.prose-calm blockquote {
+  @apply border-l-4 border-primary-500 pl-4 italic text-calm-600 my-4;
+}
+
+/* ========================================
+   Loading States
+   ======================================== */
+@layer components {
+  .skeleton {
+    @apply bg-calm-200 animate-pulse rounded;
+  }
+
+  .spinner {
+    @apply w-5 h-5 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin;
+  }
+
+  .spinner-lg {
+    @apply w-8 h-8;
+  }
+}

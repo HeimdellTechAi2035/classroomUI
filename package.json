@@ -1,0 +1,91 @@
+{
+  "name": "remoteability-classroom",
+  "version": "1.0.0",
+  "description": "RemoteAbility Local Remote Classroom - A local-first trainer cockpit and trainee classroom",
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "author": "RemoteAbility CIC",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build && electron-builder",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "preview": "vite preview",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5174 && electron .\"",
+    "electron:build": "vite build && electron-builder",
+    "lint": "eslint src --ext ts,tsx",
+    "db:migrate": "node scripts/migrate.js",
+    "db:seed": "node scripts/seed.js"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0",
+    "react-markdown": "^9.0.1",
+    "better-sqlite3": "^9.2.2",
+    "uuid": "^9.0.1",
+    "date-fns": "^2.30.0",
+    "lucide-react": "^0.294.0",
+    "zustand": "^4.4.7",
+    "marked": "^11.0.0",
+    "dompurify": "^3.0.6",
+    "papaparse": "^5.4.1",
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.8.1",
+    "archiver": "^6.0.1",
+    "extract-zip": "^2.0.1",
+    "electron-store": "^8.1.0",
+    "@tanstack/react-query": "^5.12.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/uuid": "^9.0.7",
+    "@types/dompurify": "^3.0.5",
+    "@types/papaparse": "^5.3.14",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.16",
+    "concurrently": "^8.2.2",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.3.6",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.remoteability.classroom",
+    "productName": "RemoteAbility Classroom",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "content",
+        "to": "content"
+      }
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png"
+    },
+    "portable": {
+      "artifactName": "RemoteAbilityClassroom-Portable.exe"
+    }
+  }
+}
