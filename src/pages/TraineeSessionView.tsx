@@ -400,6 +400,26 @@ See you in the next session. 🎉`,
               </div>
             )}
           </div>
+            
+            {/* Trainer Camera View - Bottom Right */}
+            <div className="absolute bottom-4 right-4 w-40 h-32 bg-calm-900 rounded-xl overflow-hidden shadow-2xl border-2 border-primary-500">
+              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-900 to-calm-900 relative">
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-20 h-20 rounded-full bg-primary-500/20 animate-pulse" />
+                </div>
+                <div className="relative z-10 flex flex-col items-center">
+                  <div className="w-14 h-14 rounded-full bg-primary-500 flex items-center justify-center text-white text-xl font-bold mb-1">
+                    T
+                  </div>
+                </div>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-calm-900 to-transparent px-2 py-1.5">
+                <div className="flex items-center justify-center gap-1">
+                  <div className="w-2 h-2 bg-success-500 rounded-full animate-pulse" />
+                  <span className="text-white text-xs font-medium">Trainer</span>
+                </div>
+              </div>
+            </div>
 
           {/* Slide Navigation (view only) */}
           <div className="p-4 bg-calm-100 border-t border-calm-200 flex items-center justify-center gap-4">
@@ -428,11 +448,23 @@ See you in the next session. 🎉`,
                 <span className="font-semibold text-calm-900 text-sm">Participants</span>
               </div>
               <span className="text-xs bg-success-100 text-success-700 px-2 py-0.5 rounded-full">
-                {participants.filter(p => p.isOnline).length} online
+                {isConnected ? (participants.filter(p => p.isOnline).length + 1) : participants.filter(p => p.isOnline).length} online
               </span>
             </div>
             
             <div className="p-2 grid grid-cols-5 gap-1.5">
+              {/* Show trainer first when connected */}
+              {isConnected && (
+                <div className="relative group" title="Trainer (Presenting)">
+                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-white font-semibold text-sm shadow-md ring-2 ring-primary-300">
+                    ??
+                  </div>
+                  <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white bg-success-500" />
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-calm-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                    Trainer (Presenting)
+                  </div>
+                </div>
+              )}
               {participants.map((participant) => (
                 <div
                   key={participant.id}
