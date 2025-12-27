@@ -54,8 +54,8 @@ class WebSocketService {
     const savedUrl = localStorage.getItem('wsServerUrl');
     if (savedUrl) return savedUrl;
     
-    // Default to localhost for development
-    return 'ws://localhost:3001';
+    // Default to production server on Render
+    return 'wss://remoteability-server.onrender.com';
   }
 
   setServerUrl(url: string): void {

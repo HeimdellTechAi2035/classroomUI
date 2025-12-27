@@ -212,7 +212,7 @@ export default function PresentationView() {
       wsService.createSession('Trainer', weekNumber, dayNumber);
     } catch (err) {
       console.error('Failed to start session:', err);
-      alert('Failed to connect to server. Please check the server is running.');
+      alert('Could not connect to the server. Please try again in a moment - the server may be waking up (this can take 30-60 seconds on first use).');
     }
   };
 
@@ -222,6 +222,7 @@ export default function PresentationView() {
       setIsSessionActive(false);
       setRoomCode('');
       setWsParticipants([]);
+      setWsMessages([]);
       wsService.disconnect();
       setWsConnected(false);
     }
@@ -924,7 +925,7 @@ Preparing for burnout and balance discussions`,
       wsService.sendChatMessage(messageText);
     }
     
-    // Also add locally for immediate feedback
+    // Add message locally for immediate feedback
     const msg: ChatMessage = {
       id: Date.now().toString(),
       senderName: isTrainer ? 'Trainer' : 'You',
@@ -933,6 +934,7 @@ Preparing for burnout and balance discussions`,
       timestamp: new Date(),
     };
     setMessages([...messages, msg]);
+    
     setNewMessage('');
     
     // Log to recording if active
