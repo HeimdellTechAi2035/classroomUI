@@ -350,7 +350,7 @@ export default function PresentationView() {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, wsMessages]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -1819,7 +1819,8 @@ Preparing for burnout and balance discussions`,
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-calm-50 min-h-[150px]">
-              {messages.map((msg) => (
+              {/* Show WebSocket messages when session is active, otherwise show local messages */}
+              {(isSessionActive ? wsMessages : messages).map((msg: any) => (
                 <div
                   key={msg.id}
                   className={`rounded-lg p-2 ${
@@ -1839,7 +1840,7 @@ Preparing for burnout and balance discussions`,
                     </span>
                     <span className="text-calm-400 text-[10px]">{formatTime(msg.timestamp)}</span>
                   </div>
-                  <p className="text-sm text-calm-800">{msg.message}</p>
+                  <p className="text-sm text-calm-800">{msg.message || msg.content}</p>
                 </div>
               ))}
               <div ref={chatEndRef} />
