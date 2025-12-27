@@ -12,6 +12,7 @@ import {
   LogOut,
   Wifi,
   WifiOff,
+  Video,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import wsService, { Participant, ChatMessage, SessionState } from '../services/websocket';
@@ -99,53 +100,163 @@ export default function TraineeSessionView() {
     const week = weekNum || session?.weekNumber || 1;
     const day = dayNum || session?.dayNumber || 1;
     
-    try {
-      // Try to load slides from the content folder
-      const slideFiles = await loadSlideFiles(week, day);
-      
-      if (slideFiles.length > 0) {
-        setSlideContents(slideFiles);
-        return;
-      }
-    } catch (err) {
-      console.error('Error loading slides:', err);
-    }
-    
-    // Fallback content if slides can't be loaded
-    const fallbackSlides = [
-      `# Welcome to Week ${week}, Day ${day}\n\n**Follow along with your trainer**\n\nThe slides will sync automatically as your trainer presents.`,
-      `# Slide 2\n\nContent synced from trainer`,
-      `# Slide 3\n\nContent synced from trainer`,
-      `# Slide 4\n\nContent synced from trainer`,
-      `# Slide 5\n\nContent synced from trainer`,
-      `# Slide 6\n\nContent synced from trainer`,
-      `# Slide 7\n\nContent synced from trainer`,
-      `# Slide 8\n\nContent synced from trainer`,
-    ];
-    setSlideContents(fallbackSlides);
+    // Use hardcoded slide content that matches trainer's view
+    const slides = getDefaultSlides(week, day);
+    setSlideContents(slides);
   };
 
-  const loadSlideFiles = async (weekNum: number, dayNum: number): Promise<string[]> => {
-    const slides: string[] = [];
-    const weekFolder = `week-${String(weekNum).padStart(2, '0')}`;
-    const dayFolder = `day-${dayNum}`;
-    
-    // Try to load up to 10 slides
-    for (let i = 1; i <= 10; i++) {
-      try {
-        const response = await fetch(`/content/weeks/${weekFolder}/${dayFolder}/slides/slide-${i}.md`);
-        if (response.ok) {
-          const content = await response.text();
-          slides.push(content);
-        } else {
-          break; // No more slides
-        }
-      } catch {
-        break;
-      }
+  // Default slide content - same as trainer sees
+  const getDefaultSlides = (week: number, day: number): string[] => {
+    // Week 1, Day 1 slides
+    if (week === 1 && day === 1) {
+      return [
+        `# Slide 1: Welcome & Energiser
+**Time: 10 minutes**
+
+## Purpose
+Reduce anxiety, establish psychological safety, and create belonging
+
+## Trainer Script
+> "Today is not about performance or pressure. It's about arriving safely."
+
+## Activity Instructions
+- Each participant may share:
+  - Their name
+  - One small hope
+- **Important reminder:** Passing is always allowed`,
+
+        `# Slide 2: Understanding Remote Work
+**Time: 15 minutes**
+
+## Key Topics
+- What is remote work?
+- Benefits of working from home
+- Common challenges and how to overcome them
+
+## Discussion Points
+- Flexibility and work-life balance
+- Communication tools we'll use
+- Setting up your workspace`,
+
+        `# Slide 3: Communication Essentials
+**Time: 15 minutes**
+
+## Core Skills
+- **Active Listening** - Give full attention
+- **Clear Writing** - Be concise and specific
+- **Video Etiquette** - Camera on, muted when not speaking
+
+## Practice Activity
+Take turns introducing yourself on camera`,
+
+        `# Slide 4: Digital Tools Overview
+**Time: 15 minutes**
+
+## Tools We'll Use
+- **Chat** - Quick messages and questions
+- **Video Calls** - Face-to-face meetings
+- **Shared Documents** - Collaborate on files
+- **Calendar** - Schedule and organize
+
+## Hands-On Practice
+Let's explore each tool together`,
+
+        `# Slide 5: Setting Boundaries
+**Time: 10 minutes**
+
+## Work-Life Balance Tips
+- Set regular working hours
+- Create a dedicated workspace
+- Take regular breaks
+- Communicate your availability
+
+## Self-Care Reminder
+> Your wellbeing matters. It's okay to step away.`,
+
+        `# Slide 6: Asking for Help
+**Time: 10 minutes**
+
+## It's Okay to Ask!
+- No question is too small
+- Use the "I need help" button
+- Message the trainer directly
+- Support each other
+
+## Remember
+> We're all learning together`,
+
+        `# Slide 7: Practice Session
+**Time: 20 minutes**
+
+## Today's Activity
+1. Send a chat message
+2. Share your screen (optional)
+3. Use the help button
+4. Respond to a poll
+
+## Goal
+Get comfortable with the tools!`,
+
+        `# Slide 8: Wrap Up & Next Steps
+**Time: 10 minutes**
+
+## Today We Learned
+- ✅ What remote work looks like
+- ✅ How to communicate effectively
+- ✅ Our digital tools
+- ✅ How to ask for help
+
+## Before Next Session
+- Test your camera and microphone
+- Set up a quiet workspace
+
+## Great job today! 🎉`,
+      ];
     }
     
-    return slides;
+    // Default slides for other days
+    return [
+      `# Welcome to Week ${week}, Day ${day}
+
+**Follow along with your trainer**
+
+The content will appear here as your trainer presents.`,
+      `# Learning Objectives
+
+Today's session will cover important topics for your development.
+
+Your trainer will guide you through each section.`,
+      `# Main Content
+
+Listen to your trainer's explanations and ask questions if needed.
+
+Use the **"I need help"** button if you need support.`,
+      `# Activity Time
+
+Your trainer will explain the activity.
+
+Participate and don't worry about making mistakes!`,
+      `# Discussion
+
+Share your thoughts with the group.
+
+Everyone's perspective matters.`,
+      `# Practice
+
+Time to put what you've learned into practice.
+
+Take your time and ask for help if needed.`,
+      `# Review
+
+Let's go over what we learned today.
+
+Feel free to ask any final questions.`,
+      `# Wrap Up
+
+**Great work today!**
+
+See you in the next session. 🎉`,
+    ];
   };
 
   const handleSlideChange = (data: any) => {
