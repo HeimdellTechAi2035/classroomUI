@@ -5,13 +5,43 @@
 | Component | Deploy To | Purpose |
 |-----------|-----------|---------|
 | Frontend (React) | Netlify | Static site hosting |
-| WebSocket Server | Railway/Render | Real-time communication |
+| WebSocket Server | Railway/Render | Real-time communication (optional) |
+
+### Demo Mode vs Live Mode
+
+The app has two modes:
+- **Demo/Preview Mode**: Works WITHOUT a WebSocket server - perfect for demos and static previews
+- **Live Mode**: Requires WebSocket server for real-time trainee synchronization
 
 ---
 
-## Step 1: Deploy WebSocket Server (Railway - Recommended)
+## Quick Start: Deploy to Netlify (Demo Mode)
 
-### Option A: Railway (Free tier available)
+If you just want to show off the app without live features:
+
+1. **Push to GitHub** (already done)
+
+2. **Deploy to Netlify**
+   - Go to [netlify.com](https://netlify.com)
+   - Click "Add new site" → "Import an existing project"
+   - Connect GitHub and select your repo
+   - Build settings are auto-detected from `netlify.toml`
+   - Click "Deploy"
+
+3. **Access Your Demo**
+   - Main app: `https://your-site.netlify.app`
+   - Trainee preview: `https://your-site.netlify.app/preview?week=1&day=1`
+   - Join page: `https://your-site.netlify.app/join`
+
+**Note**: In demo mode, the trainee view shows slides but doesn't sync in real-time.
+
+---
+
+## Full Deployment: Frontend + WebSocket Server
+
+### Step 1: Deploy WebSocket Server (Railway - Recommended)
+
+#### Option A: Railway (Free tier available)
 
 1. **Create Railway Account**
    - Go to [railway.app](https://railway.app)
@@ -33,7 +63,7 @@
    - Copy URL (e.g., `classroom-server-production.up.railway.app`)
    - Your WebSocket URL is: `wss://classroom-server-production.up.railway.app`
 
-### Option B: Render (Free tier available)
+#### Option B: Render (Free tier available)
 
 1. Go to [render.com](https://render.com) and sign up
 2. Create "New Web Service"
