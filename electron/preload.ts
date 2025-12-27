@@ -90,6 +90,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getWeeks: () => ipcRenderer.invoke('content:weeks:get'),
     getWeek: (weekNumber: number) => ipcRenderer.invoke('content:weeks:getOne', weekNumber),
     getWeekSlides: (weekNumber: number) => ipcRenderer.invoke('content:weeks:getSlides', weekNumber),
+    getSlideContent: (slidePath: string) => ipcRenderer.invoke('content:getSlideContent', slidePath),
+    saveSlideContent: (slidePath: string, content: string) => ipcRenderer.invoke('content:saveSlideContent', slidePath, content),
     getWeekResources: (weekNumber: number) => ipcRenderer.invoke('content:weeks:getResources', weekNumber),
     readFile: (filePath: string) => ipcRenderer.invoke('content:readFile', filePath),
     getPolicies: () => ipcRenderer.invoke('content:policies:get'),
@@ -274,6 +276,8 @@ declare global {
         getWeeks: () => Promise<unknown[]>;
         getWeek: (weekNumber: number) => Promise<unknown>;
         getWeekSlides: (weekNumber: number) => Promise<string[]>;
+        getSlideContent: (slidePath: string) => Promise<string>;
+        saveSlideContent: (slidePath: string, content: string) => Promise<void>;
         getWeekResources: (weekNumber: number) => Promise<unknown[]>;
         readFile: (filePath: string) => Promise<string>;
         getPolicies: () => Promise<unknown[]>;

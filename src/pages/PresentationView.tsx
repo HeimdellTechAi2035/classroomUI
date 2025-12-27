@@ -23,11 +23,21 @@ import {
   Columns,
   Presentation,
   Zap,
+  Edit3,
+  Save,
+  X,
+  Video,
+  VideoOff,
+  Wifi,
+  WifiOff,
+  Play,
+  Square,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import RecordingConsent from '../components/RecordingConsent';
 import { RecordingIndicator, RecordingBanner } from '../components/RecordingIndicator';
 import RecordingControls from '../components/RecordingControls';
+import wsService, { Participant, ChatMessage as WSChatMessage } from '../services/websocket';
 
 interface ChatMessage {
   id: string;
@@ -68,6 +78,8 @@ export default function PresentationView() {
   const [searchParams] = useSearchParams();
   const weekNumber = parseInt(searchParams.get('week') || '1');
   const dayNumber = parseInt(searchParams.get('day') || '1');
+  const startSlideIndex = parseInt(searchParams.get('slide') || '0');
+  const shouldStartEditing = searchParams.get('edit') === 'true';
   const isTrainer = searchParams.get('role') === 'trainer';
   
   // View State
@@ -78,9 +90,16 @@ export default function PresentationView() {
   
   // Content State
   const [content, setContent] = useState<WeekContent | null>(null);
-  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(startSlideIndex);
   const [contentTab, setContentTab] = useState<ContentTab>('slides');
   const [completedOutcomes, setCompletedOutcomes] = useState<Set<string>>(new Set());
+  const [slideContents, setSlideContents] = useState<string[]>([]);
+  const [loadingSlides, setLoadingSlides] = useState(true);
+  
+  // Edit State
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingContent, setEditingContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   
   // Chat State
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -92,12 +111,140 @@ export default function PresentationView() {
   const [supportRequests] = useState<string[]>([]);
   const [mySupport, setMySupport] = useState<{ active: boolean; acknowledged: boolean }>({ active: false, acknowledged: false });
 
+  // WebSocket Session State
+  const [isSessionActive, setIsSessionActive] = useState(false);
+  const [roomCode, setRoomCode] = useState<string>('');
+  const [wsConnected, setWsConnected] = useState(false);
+  const [wsParticipants, setWsParticipants] = useState<Participant[]>([]);
+  const [wsMessages, setWsMessages] = useState<WSChatMessage[]>([]);
+
+  // Demo Participants (fallback when no live session)
+  const demoParticipants = [
+    { id: '2', name: 'Alex Johnson', initials: 'AJ', color: 'bg-emerald-500', isOnline: true, isTrainer: false, joinedAt: '' },
+    { id: '3', name: 'Jordan Smith', initials: 'JS', color: 'bg-violet-500', isOnline: true, isTrainer: false, joinedAt: '' },
+    { id: '4', name: 'Sam Williams', initials: 'SW', color: 'bg-amber-500', isOnline: true, isTrainer: false, joinedAt: '' },
+    { id: '5', name: 'Casey Brown', initials: 'CB', color: 'bg-rose-500', isOnline: true, isTrainer: false, joinedAt: '' },
+    { id: '6', name: 'Morgan Davis', initials: 'MD', color: 'bg-cyan-500', isOnline: true, isTrainer: false, joinedAt: '' },
+    { id: '7', name: 'Riley Taylor', initials: 'RT', color: 'bg-indigo-500', isOnline: false, isTrainer: false, joinedAt: '' },
+    { id: '8', name: 'Quinn Anderson', initials: 'QA', color: 'bg-pink-500', isOnline: true, isTrainer: false, joinedAt: '' },
+    { id: '9', name: 'Jamie Wilson', initials: 'JW', color: 'bg-teal-500', isOnline: true, isTrainer: false, joinedAt: '' },
+    { id: '10', name: 'Avery Thomas', initials: 'AT', color: 'bg-orange-500', isOnline: true, isTrainer: false, joinedAt: '' },
+    { id: '11', name: 'Taylor Martinez', initials: 'TM', color: 'bg-lime-500', isOnline: false, isTrainer: false, joinedAt: '' },
+  ];
+
+  // Use WebSocket participants if session active, otherwise demo
+  const participants = isSessionActive ? wsParticipants.filter(p => !p.isTrainer) : demoParticipants;
+
   // Recording State
   const [showConsentModal, setShowConsentModal] = useState(!isTrainer); // Show for trainees on join
   const [hasConsented, setHasConsented] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [showRecordingControls, setShowRecordingControls] = useState(false);
+
+  // Camera State
+  const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('');
+  const [showCameraSelector, setShowCameraSelector] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // WebSocket event handlers
+  useEffect(() => {
+    // Setup WebSocket listeners
+    wsService.on('session-created', handleSessionCreated);
+    wsService.on('participant-joined', handleParticipantJoined);
+    wsService.on('participant-left', handleParticipantLeft);
+    wsService.on('chat-message', handleWsChatMessage);
+    wsService.on('disconnected', handleWsDisconnected);
+    
+    return () => {
+      wsService.off('session-created', handleSessionCreated);
+      wsService.off('participant-joined', handleParticipantJoined);
+      wsService.off('participant-left', handleParticipantLeft);
+      wsService.off('chat-message', handleWsChatMessage);
+      wsService.off('disconnected', handleWsDisconnected);
+    };
+  }, []);
+
+  const handleSessionCreated = (data: any) => {
+    setRoomCode(data.roomCode);
+    setIsSessionActive(true);
+    setWsParticipants(data.session.participants);
+    setWsMessages(data.session.messages);
+  };
+
+  const handleParticipantJoined = (data: any) => {
+    setWsParticipants(data.participants);
+  };
+
+  const handleParticipantLeft = (data: any) => {
+    setWsParticipants(data.participants);
+  };
+
+  const handleWsChatMessage = (data: any) => {
+    setWsMessages(prev => [...prev, data.message]);
+  };
+
+  const handleWsDisconnected = () => {
+    setWsConnected(false);
+  };
+
+  const startLiveSession = async () => {
+    try {
+      await wsService.connect();
+      setWsConnected(true);
+      wsService.createSession('Trainer', weekNumber, dayNumber);
+    } catch (err) {
+      console.error('Failed to start session:', err);
+      alert('Failed to connect to server. Please check the server is running.');
+    }
+  };
+
+  const endLiveSession = () => {
+    if (confirm('Are you sure you want to end the session? All participants will be disconnected.')) {
+      wsService.endSession();
+      setIsSessionActive(false);
+      setRoomCode('');
+      setWsParticipants([]);
+      wsService.disconnect();
+      setWsConnected(false);
+    }
+  };
+
+  // Broadcast slide changes to participants
+  const broadcastSlideChange = (slideIndex: number) => {
+    if (isSessionActive) {
+      wsService.changeSlide(slideIndex);
+    }
+  };
+
+  // Load available cameras on mount
+  useEffect(() => {
+    const loadCameras = async () => {
+      try {
+        // Request permission first to get device labels
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+          .then(stream => stream.getTracks().forEach(track => track.stop()));
+        
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const cameras = devices.filter(device => device.kind === 'videoinput');
+        setAvailableCameras(cameras);
+        
+        // Set default to first non-DroidCam camera if available
+        const preferredCamera = cameras.find(cam => 
+          !cam.label.toLowerCase().includes('droidcam')
+        ) || cameras[0];
+        if (preferredCamera) {
+          setSelectedCameraId(preferredCamera.deviceId);
+        }
+      } catch (err) {
+        console.error('Error loading cameras:', err);
+      }
+    };
+    loadCameras();
+  }, []);
 
   // Load content on mount
   useEffect(() => {
@@ -106,6 +253,85 @@ export default function PresentationView() {
     const msgInterval = setInterval(loadMessages, 3000);
     return () => clearInterval(msgInterval);
   }, [weekNumber, dayNumber]);
+
+  // Auto-start editing if requested via URL
+  useEffect(() => {
+    if (shouldStartEditing && !loadingSlides && slideContents[currentSlideIndex]) {
+      startEditing();
+    }
+  }, [shouldStartEditing, loadingSlides, currentSlideIndex, slideContents]);
+
+  // Camera toggle function
+  const toggleCamera = async () => {
+    if (cameraEnabled && cameraStream) {
+      // Stop camera
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+      setCameraEnabled(false);
+    } else {
+      // Start camera with selected device
+      try {
+        const constraints: MediaStreamConstraints = {
+          video: selectedCameraId 
+            ? { deviceId: { exact: selectedCameraId }, width: 320, height: 240 }
+            : { width: 320, height: 240, facingMode: 'user' },
+          audio: false 
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        setCameraStream(stream);
+        setCameraEnabled(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (err) {
+        console.error('Error accessing camera:', err);
+        alert('Unable to access camera. Please check permissions.');
+      }
+    }
+  };
+
+  // Switch camera function
+  const switchCamera = async (deviceId: string) => {
+    setSelectedCameraId(deviceId);
+    setShowCameraSelector(false);
+    
+    // Stop existing stream if any
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+    }
+    
+    // Start camera with selected device (whether it was on or off before)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: deviceId }, width: 320, height: 240 },
+        audio: false
+      });
+      setCameraStream(stream);
+      setCameraEnabled(true);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error('Error switching camera:', err);
+      alert('Unable to access camera. Please check permissions.');
+    }
+  };
+
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [cameraStream]);
+
+  // Update video element when stream changes
+  useEffect(() => {
+    if (videoRef.current && cameraStream) {
+      videoRef.current.srcObject = cameraStream;
+    }
+  }, [cameraStream]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -144,16 +370,461 @@ export default function PresentationView() {
   }, [currentSlideIndex, content]);
 
   const loadContent = async () => {
-    // Demo content - in real app, load from database
-    setContent({
-      weekNumber,
-      title: getDayTitle(weekNumber, dayNumber),
-      overview: getDayOverview(weekNumber, dayNumber),
-      slides: Array.from({ length: 8 }, (_, i) => `/slides/week${weekNumber}/day${dayNumber}/slide${i + 1}.png`),
-      trainerNotes: getTrainerNotes(weekNumber, dayNumber),
-      activities: getActivities(weekNumber, dayNumber),
-      outcomes: getOutcomes(weekNumber, dayNumber),
-    });
+    setLoadingSlides(true);
+    console.log(`Loading content for week ${weekNumber}, day ${dayNumber}`);
+    
+    // Try to load actual slides for weeks 1-3 that have content
+    if (weekNumber >= 1 && weekNumber <= 3) {
+      if (window.electronAPI?.content?.getWeekSlides) {
+        try {
+          console.log(`Attempting to load slides for week ${weekNumber}, day ${dayNumber}`);
+          const slides = await window.electronAPI.content.getWeekSlides(weekNumber, dayNumber) || [];
+          console.log('Loaded slides:', slides);
+          
+          if (slides.length > 0) {
+            // Load slide contents
+            const contents: string[] = [];
+            for (const slidePath of slides) {
+              if (slidePath.endsWith('.md')) {
+                const content = await window.electronAPI.content.getSlideContent(slidePath) || '';
+                contents.push(content);
+              } else {
+                contents.push(slidePath);
+              }
+            }
+            setSlideContents(contents);
+            
+            setContent({
+              weekNumber,
+              title: getDayTitle(weekNumber, dayNumber),
+              overview: getDayOverview(weekNumber, dayNumber),
+              slides: slides,
+              trainerNotes: getTrainerNotes(weekNumber, dayNumber),
+              activities: getActivities(weekNumber, dayNumber),
+              outcomes: getOutcomes(weekNumber, dayNumber),
+            });
+            setLoadingSlides(false);
+            return;
+          }
+        } catch (error) {
+          console.error('Error loading slides via electron API:', error);
+        }
+      }
+      
+      // Fallback: use hardcoded slide content for week 1
+      const fallbackSlides = [
+        'slide-1.md', 'slide-2.md', 'slide-3.md', 'slide-4.md',
+        'slide-5.md', 'slide-6.md', 'slide-7.md', 'slide-8.md'
+      ];
+      const fallbackContents = dayNumber === 1 ? [
+        `# Slide 1: Welcome & Energiser
+**Time: 10 minutes**
+
+## Purpose
+Reduce anxiety, establish psychological safety, and create belonging
+
+## Trainer Script
+> "Today is not about performance or pressure. It's about arriving safely."
+
+## Activity Instructions
+- Each participant may share:
+  - Their name
+  - One small hope
+- **Important reminder:** Passing is always allowed`,
+        `# Slide 2: Main Learning Activity
+**Time: 40 minutes**
+
+## What is RemoteAbility?
+- A supportive, non-competitive training programme
+- Focused on individual strengths and needs
+- Adaptable to different learning styles
+
+## What RemoteAbility is NOT
+- A test or assessment of your abilities
+- Competitive with other participants
+- Rigid or inflexible
+
+## Programme Structure
+- **6 weeks total**
+- Predictable daily format
+- Built-in support and flexibility
+- Focus on practical skills`,
+        `# Slide 3: Break Time
+**Time: 10 minutes**
+
+## Break Instructions
+- Stretch your body
+- Hydrate with water
+- Step away from your workspace
+- Fresh air if possible
+
+## Return Time
+**Please return at: [INSERT SPECIFIC TIME]**
+
+## Trainer Notes
+- Clearly announce the exact return time
+- Use this time to check in with anxious participants`,
+        `# Slide 4: Group Discussion
+**Time: 25 minutes**
+
+## Discussion Prompts
+Choose 1-2 questions that feel right for the group:
+
+- What made you decide to join this programme?
+- What has been difficult about work previously?
+- What do you hope might be different this time?
+- What would success look like for you?
+
+## ⚠️ Safeguarding Reminders
+- Never force sharing
+- Watch for signs of distress
+- Follow up privately if concerns arise`,
+        `# Slide 5: Practice Exercise
+**Time: 25 minutes**
+
+## Private Reflection Exercise
+**Important: This is NOT assessed or collected**
+
+### Reflection Questions
+Think quietly about:
+
+1. **One difficulty** around work or learning
+2. **One personal strength** you bring
+3. **One small win** from today
+
+## Instructions
+- This is completely private
+- You may write notes or just think
+- No sharing required`,
+        `# Slide 6: Wrap-Up & Preview
+**Time: 10 minutes**
+
+## Key Messages
+✅ **Attending today is an achievement**
+
+✅ **You belong in this programme**
+
+✅ **There is no pass or fail**
+
+## Next Session Preview
+**Week 1 – Day 2: Initial Assessments**
+- Understanding your support needs
+- Identifying your strengths
+- Planning your journey
+- Still no pass or fail!`,
+        `# Slide 7: Trainer Audit & Evidence
+**For Trainer Reference Only**
+
+## Required Documentation ✓
+- [ ] Attendance recorded
+- [ ] Engagement observed (no scoring)
+- [ ] Adjustments requested logged
+- [ ] Safeguarding concerns noted privately
+
+## Post-Session Actions
+- Complete attendance register
+- Note accessibility needs identified
+- Follow up safeguarding concerns via proper channels`,
+        `# Slide 8: Resources & Accessibility
+
+## Session Resources
+- Attendance register
+- Programme overview materials
+- Contact information sheets
+- Private reflection sheets (optional)
+
+## Accessibility Checklist
+- [ ] Materials in alternative formats available
+- [ ] Flexible participation allowed
+- [ ] Quiet spaces identified
+- [ ] Communication preferences noted`
+      ] : dayNumber === 2 ? [
+        `# Day 2 Slide 1: Welcome & Assessment Overview
+**Time: 10 minutes**
+
+## Purpose
+Welcome back and introduce assessment concepts
+
+## Activity
+Chat energiser about assessment feelings`,
+        `# Day 2 Slide 2: Understanding Assessments  
+**Time: 40 minutes**
+
+## Key Concepts
+- Assessment vs Testing
+- Understanding vs Judging
+- Supportive approaches
+
+## Learning Objectives
+- Understand purpose of assessments
+- Recognize difference between testing and understanding
+- Map appropriate support strategies`,
+        `# Day 2 Slide 3: Break Time
+**Time: 10 minutes**
+
+## Break Instructions
+- Reflect on assessment concepts
+- Prepare for group discussion
+- Step away from workspace
+
+## Return Time
+**Please return at: [INSERT SPECIFIC TIME]**`,
+        `# Day 2 Slide 4: Group Discussion
+**Time: 25 minutes**
+
+## Discussion Topics
+- Personal experiences with assessment
+- Concerns and worries about assessment
+- Moving forward with new understanding
+
+## Facilitating Tips
+- Create safe space for sharing
+- Acknowledge all experiences
+- No judgment - we're all learning`,
+        `# Day 2 Slide 5: Support Mapping Practice
+**Time: 25 minutes**
+
+## Practice Scenarios
+- Sarah - The quiet online learner
+- Marcus - The enthusiastic participant  
+- Aisha - The confident contributor
+
+## Exercise Goal
+Practice mapping support strategies based on observations`,
+        `# Day 2 Slide 6: Wrap-Up & Next Steps
+**Time: 10 minutes**
+
+## Key Takeaways
+- Assessment is understanding, not testing
+- Individual differences are normal
+- Environment matters
+- Communication is key`,
+        `# Day 2 Slide 7: Trainer Audit
+**For Trainer Reference**
+
+## Session Completion
+- [ ] Content delivered effectively
+- [ ] Engagement levels documented
+- [ ] Follow-up actions noted
+- [ ] Individual support needs identified`,
+        `# Day 2 Slide 8: Resources & References
+
+## Materials
+- Assessment guidelines
+- Support strategy templates  
+- Professional development resources
+- Contact information for further support`
+      ] : dayNumber === 3 ? [
+        `# Day 3 Slide 1: Welcome & Energiser
+**Time: 10 minutes**
+
+## Purpose
+Gentle activation and confidence normalisation
+
+## Trainer Script
+"Confidence is not something you either have or don't have – it's something you rebuild."
+
+## Activity
+Share one thing you did recently that took effort (no matter how small)`,
+        `# Day 3 Slide 2: Understanding Confidence
+**Time: 40 minutes**
+
+## Key Concepts
+- Confidence is rebuilding, not born
+- Communication styles diversity
+- Finding what works for YOU
+
+## Communication Styles
+- Verbal, Written, Structured, Paced
+- All are equally valid
+- Environment matters for confidence`,
+        `# Day 3 Slide 3: Break Time
+**Time: 10 minutes**
+
+## Break Instructions
+- Step away from screens
+- Grounding exercises
+- Process confidence discussions
+
+## Return Focus
+Preparing for voice and communication practice`,
+        `# Day 3 Slide 4: Group Discussion - Finding Your Voice
+**Time: 25 minutes**
+
+## Discussion Topics
+- Confidence challenges
+- Communication comfort zones
+- Feeling heard and respected
+
+## Safe Environment
+- Share only what feels comfortable
+- All experiences are valid
+- Multiple participation methods welcome`,
+        `# Day 3 Slide 5: Practice Exercise - Safe Expression
+**Time: 25 minutes**
+
+## Safe Expression Practice
+- Practice work-related communication
+- Multiple expression methods available
+- Focus on effort, not perfection
+
+## Scenarios Available
+- Asking for clarification
+- Setting boundaries
+- Requesting help
+- Contributing ideas`,
+        `# Day 3 Slide 6: Wrap-Up & Preview
+**Time: 10 minutes**
+
+## Key Messages
+- Voice matters and can be developed
+- Communication confidence grows with practice
+- You deserve to be heard respectfully
+
+## Day 4 Preview
+- Expectations and boundaries
+- Sustainable pacing
+- Building on today's foundation`,
+        `# Day 3 Slide 7: Trainer Audit
+**For Trainer Reference**
+
+## Session Quality Check
+- Communication focus assessment
+- Confidence building effectiveness
+- Safe expression environment created
+- Individual preferences noted`,
+        `# Day 3 Slide 8: Resources & References
+
+## Materials
+- Communication practice templates
+- Confidence building tools
+- Voice development resources
+- Professional support contacts`
+      ] : dayNumber === 4 ? [
+        `# Day 4 Slide 1: Welcome & Week Reflection
+**Time: 10 minutes**
+
+## Purpose
+Week reflection and sustainable work introduction
+
+## Trainer Script
+"Sustainable work is about consistency, not pushing through exhaustion."
+
+## Activity
+Share one thing you learned about yourself this week (optional)`,
+        `# Day 4 Slide 2: Expectations & Boundaries
+**Time: 40 minutes**
+
+## Key Concepts
+- Healthy vs unhealthy expectations
+- Professional boundary-setting
+- Sustainable pacing skills
+
+## Core Message
+Boundary-setting is professional, not weakness`,
+        `# Day 4 Slide 3: Break Time
+**Time: 10 minutes**
+
+## Break Instructions
+- Practice sustainable break-taking
+- Movement and eye rest
+- Model healthy boundary behavior
+
+## Return Focus
+Preparing for burnout and balance discussions`,
+        `# Day 4 Slide 4: Group Discussion - Burnout & Balance
+**Time: 25 minutes**
+
+## Discussion Topics
+- What overwhelms you at work?
+- Warning signs and boundaries
+- Past helpful boundaries
+
+## Safe Environment
+- Validate burnout experiences
+- Normalize boundary needs
+- Share practical strategies`,
+        `# Day 4 Slide 5: Personal Pacing Plan
+**Time: 25 minutes**
+
+## Private Exercise
+- Create individual pacing strategy
+- Energy peaks and break needs
+- Personal warning signs
+
+## Focus Areas
+- Ideal working times
+- Break frequency needs
+- Signals to pause and rest`,
+        `# Day 4 Slide 6: Week 1 Wrap-Up & Week 2 Preview
+**Time: 10 minutes**
+
+## Key Messages
+- Sustainable pacing is professional skill
+- Week 1 completion celebration
+- Boundary-setting continues
+
+## Week 2 Preview
+- Practical skills development
+- Applied learning opportunities
+- Building on Week 1 foundations`,
+        `# Day 4 Slide 7: Trainer Audit
+**For Trainer Reference**
+
+## Week 1 Assessment
+- Sustainability focus evaluation
+- Individual pacing needs noted
+- Boundary awareness developed
+- Week completion achievements`,
+        `# Day 4 Slide 8: Resources & Week 2 Preview
+
+## Materials
+- Pacing plan templates
+- Boundary-setting resources
+- Week 2 preparation guides
+- Ongoing support contacts`
+      ] : [];
+      
+      setSlideContents(fallbackContents);
+      setContent({
+        weekNumber,
+        title: getDayTitle(weekNumber, dayNumber),
+        overview: getDayOverview(weekNumber, dayNumber),
+        slides: fallbackSlides,
+        trainerNotes: getTrainerNotes(weekNumber, dayNumber),
+        activities: getActivities(weekNumber, dayNumber),
+        outcomes: getOutcomes(weekNumber, dayNumber),
+      });
+    } else if (weekNumber >= 2 && weekNumber <= 6) {
+      // For weeks 2-6, load from files or use simple fallback
+      const fallbackSlides = [
+        'slide-1.md', 'slide-2.md', 'slide-3.md', 'slide-4.md',
+        'slide-5.md', 'slide-6.md', 'slide-7.md', 'slide-8.md'
+      ];
+      
+      setSlideContents(fallbackSlides.map(slide => `# ${slide}\n\nSlide content for Week ${weekNumber}, Day ${dayNumber}`));
+      setContent({
+        weekNumber,
+        title: getDayTitle(weekNumber, dayNumber),
+        overview: getDayOverview(weekNumber, dayNumber),
+        slides: fallbackSlides,
+        trainerNotes: getTrainerNotes(weekNumber, dayNumber),
+        activities: getActivities(weekNumber, dayNumber),
+        outcomes: getOutcomes(weekNumber, dayNumber),
+      });
+    } else {
+      // For other weeks, use default demo content
+      setContent({
+        weekNumber,
+        title: getDayTitle(weekNumber, dayNumber),
+        overview: getDayOverview(weekNumber, dayNumber),
+        slides: Array.from({ length: 8 }, (_, i) => `/slides/week${weekNumber}/day${dayNumber}/slide${i + 1}.png`),
+        trainerNotes: getTrainerNotes(weekNumber, dayNumber),
+        activities: getActivities(weekNumber, dayNumber),
+        outcomes: getOutcomes(weekNumber, dayNumber),
+      });
+    }
+    setLoadingSlides(false);
   };
 
   const loadMessages = () => {
@@ -167,13 +838,17 @@ export default function PresentationView() {
 
   const nextSlide = () => {
     if (content && currentSlideIndex < content.slides.length - 1) {
-      setCurrentSlideIndex(prev => prev + 1);
+      const newIndex = currentSlideIndex + 1;
+      setCurrentSlideIndex(newIndex);
+      broadcastSlideChange(newIndex);
     }
   };
 
   const prevSlide = () => {
     if (currentSlideIndex > 0) {
-      setCurrentSlideIndex(prev => prev - 1);
+      const newIndex = currentSlideIndex - 1;
+      setCurrentSlideIndex(newIndex);
+      broadcastSlideChange(newIndex);
     }
   };
 
@@ -187,13 +862,60 @@ export default function PresentationView() {
     }
   };
 
+  const startEditing = () => {
+    setIsEditing(true);
+    setEditingContent(slideContents[currentSlideIndex] || '');
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setEditingContent('');
+  };
+
+  const saveSlideContent = async () => {
+    if (!editingContent.trim()) return;
+    
+    setIsSaving(true);
+    try {
+      // Save to backend if electron API is available
+      if (window.electronAPI?.content?.saveSlideContent && content?.slides[currentSlideIndex]) {
+        await window.electronAPI.content.saveSlideContent(
+          content.slides[currentSlideIndex], 
+          editingContent
+        );
+      }
+      
+      // Update local state
+      const newSlideContents = [...slideContents];
+      newSlideContents[currentSlideIndex] = editingContent;
+      setSlideContents(newSlideContents);
+      
+      setIsEditing(false);
+      setEditingContent('');
+    } catch (error) {
+      console.error('Error saving slide content:', error);
+      alert('Failed to save slide content. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const sendMessage = () => {
     if (!newMessage.trim()) return;
+    
+    const messageText = newMessage.trim();
+    
+    // If session is active, send via WebSocket
+    if (isSessionActive) {
+      wsService.sendChatMessage(messageText);
+    }
+    
+    // Also add locally for immediate feedback
     const msg: ChatMessage = {
       id: Date.now().toString(),
       senderName: isTrainer ? 'Trainer' : 'You',
       senderType: isTrainer ? 'trainer' : 'trainee',
-      message: newMessage.trim(),
+      message: messageText,
       timestamp: new Date(),
     };
     setMessages([...messages, msg]);
@@ -269,7 +991,11 @@ export default function PresentationView() {
   };
 
   const copyShareLink = () => {
-    const url = `${window.location.origin}/present?week=${weekNumber}&day=${dayNumber}&role=trainee`;
+    // If session is active, share the join link with room code
+    // Otherwise share the direct presentation link
+    const url = isSessionActive && roomCode
+      ? `${window.location.origin}/join?code=${roomCode}`
+      : `${window.location.origin}/present?week=${weekNumber}&day=${dayNumber}&role=trainee`;
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -371,6 +1097,50 @@ export default function PresentationView() {
 
           {/* Right - Controls */}
           <div className="flex items-center gap-2">
+            {/* Live Session Controls - Trainer Only */}
+            {isTrainer && (
+              <>
+                {!isSessionActive ? (
+                  <button
+                    onClick={startLiveSession}
+                    className="flex items-center gap-2 px-4 py-2 bg-success-500 hover:bg-success-600 rounded-xl text-white transition-colors shadow-md font-medium"
+                  >
+                    <Wifi size={16} />
+                    Start Live Session
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-success-100 border border-success-300 rounded-xl">
+                      <div className="w-2 h-2 bg-success-500 rounded-full animate-pulse" />
+                      <span className="text-success-700 font-medium text-sm">Room:</span>
+                      <span className="font-mono font-bold text-success-800 text-lg">{roomCode}</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(roomCode);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        }}
+                        className="p-1 hover:bg-success-200 rounded-lg transition-colors"
+                        title="Copy room code"
+                      >
+                        {copied ? <Check size={14} /> : <Copy size={14} />}
+                      </button>
+                    </div>
+                    <span className="text-calm-500 text-sm">
+                      {wsParticipants.filter(p => !p.isTrainer).length} connected
+                    </span>
+                    <button
+                      onClick={endLiveSession}
+                      className="flex items-center gap-2 px-3 py-2 bg-danger-100 hover:bg-danger-200 text-danger-700 rounded-xl transition-colors font-medium"
+                    >
+                      <Square size={14} />
+                      End
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
             {/* Recording Indicator */}
             {isRecording && (
               <RecordingIndicator isPaused={isPaused} size="sm" />
@@ -393,10 +1163,13 @@ export default function PresentationView() {
             {isTrainer && (
               <button
                 onClick={copyShareLink}
-                className="flex items-center gap-2 px-4 py-2 bg-accent-500 hover:bg-accent-600 rounded-xl text-white transition-colors shadow-md"
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-white transition-colors shadow-md ${
+                  isSessionActive ? 'bg-accent-500 hover:bg-accent-600' : 'bg-calm-400 hover:bg-calm-500'
+                }`}
+                title={isSessionActive ? `Share join link with room code ${roomCode}` : 'Start a live session first to share join link'}
               >
                 {copied ? <Check size={16} /> : <Copy size={16} />}
-                {copied ? 'Copied!' : 'Share Link'}
+                {copied ? 'Copied!' : isSessionActive ? `Share: ${roomCode}` : 'Share Link'}
               </button>
             )}
             <button
@@ -461,19 +1234,132 @@ export default function PresentationView() {
               {contentTab === 'slides' && (
                 <div className="h-full flex flex-col">
                   {/* Slide Display */}
-                  <div className="flex-1 bg-calm-100 rounded-xl flex items-center justify-center relative overflow-hidden min-h-[300px] border border-calm-200">
-                    <div className="text-center text-calm-500">
-                      <Presentation size={64} className="mx-auto mb-4 opacity-50" />
-                      <p className="text-lg text-calm-700">Slide {currentSlideIndex + 1}</p>
-                      <p className="text-sm mt-2 text-calm-500">Week {weekNumber}, Day {dayNumber} Content</p>
-                    </div>
+                  <div className="flex-1 bg-white rounded-xl border border-calm-200 overflow-hidden min-h-[300px] relative">
+                    {/* Edit/Save Controls */}
+                    {isTrainer && (
+                      <div className="absolute top-4 right-4 z-10 flex gap-2">
+                        {!isEditing ? (
+                          <button
+                            onClick={startEditing}
+                            className="p-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors shadow-md flex items-center gap-2"
+                            title="Edit slide content"
+                          >
+                            <Edit3 size={16} />
+                            <span className="text-sm">Edit</span>
+                          </button>
+                        ) : (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={saveSlideContent}
+                              disabled={isSaving}
+                              className="p-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors shadow-md flex items-center gap-2 disabled:opacity-50"
+                              title="Save changes"
+                            >
+                              <Save size={16} />
+                              <span className="text-sm">{isSaving ? 'Saving...' : 'Save'}</span>
+                            </button>
+                            <button
+                              onClick={cancelEditing}
+                              disabled={isSaving}
+                              className="p-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors shadow-md disabled:opacity-50"
+                              title="Cancel editing"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {loadingSlides ? (
+                      <div className="flex items-center justify-center h-full text-calm-500">
+                        <div className="text-center">
+                          <Presentation size={64} className="mx-auto mb-4 opacity-50 animate-pulse" />
+                          <p className="text-lg">Loading slides...</p>
+                        </div>
+                      </div>
+                    ) : isEditing ? (
+                      <div className="h-full p-6 flex flex-col">
+                        <div className="mb-4">
+                          <h3 className="text-lg font-semibold text-calm-800 mb-2">
+                            Editing Slide {currentSlideIndex + 1}
+                          </h3>
+                          <p className="text-sm text-calm-600">
+                            Use Markdown formatting. Changes will be saved permanently.
+                          </p>
+                        </div>
+                        <textarea
+                          value={editingContent}
+                          onChange={(e) => setEditingContent(e.target.value)}
+                          className="flex-1 w-full p-4 border border-calm-300 rounded-lg font-mono text-sm resize-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                          placeholder="Enter slide content using Markdown..."
+                        />
+                        <div className="mt-4 flex justify-between items-center">
+                          <span className="text-sm text-calm-500">
+                            Preview will update after saving
+                          </span>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={cancelEditing}
+                              disabled={isSaving}
+                              className="px-4 py-2 text-calm-600 hover:bg-calm-100 rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={saveSlideContent}
+                              disabled={isSaving || !editingContent.trim()}
+                              className="px-6 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              {isSaving ? 'Saving...' : 'Save Changes'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : slideContents[currentSlideIndex] && slideContents[currentSlideIndex].includes('#') ? (
+                      <div className="h-full overflow-y-auto">
+                        <div className="p-12 prose prose-lg prose-calm max-w-none">
+                          <ReactMarkdown 
+                            components={{
+                              h1: ({children}) => <h1 className="text-4xl font-bold text-calm-900 mb-6 border-b-4 border-primary-500 pb-4">{children}</h1>,
+                              h2: ({children}) => <h2 className="text-2xl font-semibold text-calm-800 mb-4 mt-8">{children}</h2>,
+                              h3: ({children}) => <h3 className="text-xl font-medium text-calm-700 mb-3 mt-6">{children}</h3>,
+                              p: ({children}) => <p className="text-lg text-calm-700 mb-4 leading-relaxed">{children}</p>,
+                              strong: ({children}) => <strong className="text-primary-700 font-bold">{children}</strong>,
+                              ul: ({children}) => <ul className="text-lg text-calm-700 mb-4 ml-6 space-y-2">{children}</ul>,
+                              li: ({children}) => <li className="leading-relaxed">{children}</li>,
+                              blockquote: ({children}) => <blockquote className="border-l-4 border-accent-400 bg-accent-50 p-4 my-6 italic text-accent-800 text-xl">{children}</blockquote>
+                            }}
+                          >
+                            {slideContents[currentSlideIndex]}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                    ) : slideContents[currentSlideIndex]?.match(/\.(png|jpg|jpeg|gif|webp)$/i) ? (
+                      <div className="flex items-center justify-center h-full">
+                        <img 
+                          src={slideContents[currentSlideIndex]} 
+                          alt={`Slide ${currentSlideIndex + 1}`}
+                          className="max-w-full max-h-full object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-calm-500">
+                        <div className="text-center">
+                          <Presentation size={64} className="mx-auto mb-4 opacity-50" />
+                          <p className="text-lg text-calm-700">Slide {currentSlideIndex + 1}</p>
+                          <p className="text-sm mt-2 text-calm-500">Week {weekNumber}, Day {dayNumber} Content</p>
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Slide number badge */}
                     <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-lg text-sm text-calm-700 shadow-md border border-calm-200">
-                      {currentSlideIndex + 1} / {content.slides.length}
+                      {currentSlideIndex + 1} / {content?.slides?.length || 0}
                     </div>
                   </div>
                   
-                  {/* Slide Navigation */}
+                    {/* Slide Navigation */}
                   <div className="flex items-center justify-center gap-4 mt-4">
                     <button
                       onClick={prevSlide}
@@ -485,7 +1371,7 @@ export default function PresentationView() {
                     
                     {/* Slide dots */}
                     <div className="flex gap-1.5">
-                      {content.slides.slice(0, 12).map((_, i) => (
+                      {content?.slides?.slice(0, 12).map((_, i) => (
                         <button
                           key={i}
                           onClick={() => setCurrentSlideIndex(i)}
@@ -500,7 +1386,7 @@ export default function PresentationView() {
                     
                     <button
                       onClick={nextSlide}
-                      disabled={currentSlideIndex === content.slides.length - 1}
+                      disabled={currentSlideIndex === (content?.slides?.length || 0) - 1}
                       className="p-3 rounded-xl bg-calm-200 hover:bg-calm-300 text-calm-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       <ChevronRight size={20} />
@@ -585,17 +1471,204 @@ export default function PresentationView() {
         {/* Live Classroom Panel */}
         {(viewMode === 'split' || viewMode === 'classroom') && (
           <div className={`${viewMode === 'split' ? 'w-1/2' : 'flex-1'} flex flex-col gap-4`}>
-            {/* Screen Share Area */}
+            {/* Screen Share Area - Shows Current Slide */}
             <div className="flex-1 bg-white/90 backdrop-blur-xl rounded-2xl border border-calm-200 shadow-lg flex flex-col overflow-hidden">
-              <div className="flex-1 bg-calm-100 m-4 rounded-xl flex items-center justify-center relative border border-calm-200">
-                <div className="text-center text-calm-500">
-                  <Monitor size={64} className="mx-auto mb-4 opacity-50" />
-                  <p className="text-lg text-calm-700">Trainer Screen Share</p>
-                  <p className="text-sm mt-2 text-calm-500">The presentation will appear here during live sessions</p>
-                </div>
-                <div className="absolute top-4 left-4 flex items-center gap-2 bg-danger-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium shadow-md">
+              <div className="flex-1 bg-calm-50 m-4 rounded-xl flex flex-col relative border border-calm-200 overflow-hidden">
+                {/* LIVE Badge */}
+                <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-danger-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium shadow-md">
                   <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
                   LIVE
+                </div>
+                
+                {/* Slide Counter Badge */}
+                <div className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-calm-800/80 text-white px-3 py-1.5 rounded-lg text-sm font-medium shadow-md">
+                  <Presentation size={14} />
+                  {currentSlideIndex + 1} / {content?.slides.length || 0}
+                </div>
+
+                {/* Trainer Camera Preview */}
+                <div className="absolute bottom-20 right-4 z-20">
+                  {cameraEnabled ? (
+                    <div className="relative group">
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-40 h-32 rounded-xl border-2 border-white shadow-xl object-cover bg-calm-900"
+                        style={{ transform: 'scaleX(-1)' }}
+                      />
+                      <button
+                        onClick={toggleCamera}
+                        className="absolute -top-2 -right-2 w-7 h-7 bg-danger-500 hover:bg-danger-600 text-white rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Turn off camera"
+                      >
+                        <VideoOff size={14} />
+                      </button>
+                      {/* Camera switch button */}
+                      <button
+                        onClick={() => setShowCameraSelector(!showCameraSelector)}
+                        className="absolute -top-2 -left-2 w-7 h-7 bg-calm-700 hover:bg-calm-600 text-white rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Switch camera"
+                      >
+                        <Video size={14} />
+                      </button>
+                      <div className="absolute bottom-2 left-2 bg-calm-900/70 text-white text-xs px-2 py-0.5 rounded-md">
+                        Trainer
+                      </div>
+                      
+                      {/* Camera selector dropdown */}
+                      {showCameraSelector && (
+                        <div className="absolute bottom-full left-0 mb-2 w-56 bg-white rounded-lg shadow-xl border border-calm-200 overflow-hidden">
+                          <div className="px-3 py-2 bg-calm-50 border-b border-calm-200 text-xs font-semibold text-calm-600">
+                            Select Camera
+                          </div>
+                          {availableCameras.map((camera) => (
+                            <button
+                              key={camera.deviceId}
+                              onClick={() => switchCamera(camera.deviceId)}
+                              className={`w-full px-3 py-2 text-left text-sm hover:bg-primary-50 transition-colors flex items-center gap-2 ${
+                                selectedCameraId === camera.deviceId ? 'bg-primary-100 text-primary-700' : 'text-calm-700'
+                              }`}
+                            >
+                              <Video size={14} />
+                              <span className="truncate">{camera.label || `Camera ${availableCameras.indexOf(camera) + 1}`}</span>
+                              {selectedCameraId === camera.deviceId && (
+                                <Check size={14} className="ml-auto text-primary-600" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <button
+                        onClick={toggleCamera}
+                        className="w-40 h-32 rounded-xl border-2 border-dashed border-calm-300 bg-calm-100 hover:bg-calm-200 hover:border-calm-400 flex flex-col items-center justify-center gap-2 transition-all group"
+                        title="Turn on camera"
+                      >
+                        <Video size={24} className="text-calm-400 group-hover:text-calm-600" />
+                        <span className="text-xs text-calm-500 group-hover:text-calm-700">Enable Camera</span>
+                      </button>
+                      
+                      {/* Camera selector for when camera is off */}
+                      {availableCameras.length > 1 && (
+                        <button
+                          onClick={() => setShowCameraSelector(!showCameraSelector)}
+                          className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-xs text-calm-500 hover:text-calm-700 underline"
+                        >
+                          Change camera
+                        </button>
+                      )}
+                      
+                      {showCameraSelector && (
+                        <div className="absolute bottom-full left-0 mb-2 w-56 bg-white rounded-lg shadow-xl border border-calm-200 overflow-hidden">
+                          <div className="px-3 py-2 bg-calm-50 border-b border-calm-200 text-xs font-semibold text-calm-600">
+                            Select Camera
+                          </div>
+                          {availableCameras.map((camera) => (
+                            <button
+                              key={camera.deviceId}
+                              onClick={() => switchCamera(camera.deviceId)}
+                              className={`w-full px-3 py-2 text-left text-sm hover:bg-primary-50 transition-colors flex items-center gap-2 ${
+                                selectedCameraId === camera.deviceId ? 'bg-primary-100 text-primary-700' : 'text-calm-700'
+                              }`}
+                            >
+                              <Video size={14} />
+                              <span className="truncate">{camera.label || `Camera ${availableCameras.indexOf(camera) + 1}`}</span>
+                              {selectedCameraId === camera.deviceId && (
+                                <Check size={14} className="ml-auto text-primary-600" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Live Slide Content */}
+                <div className="flex-1 p-8 pt-16 overflow-auto">
+                  {slideContents[currentSlideIndex] ? (
+                    <div className="prose prose-lg max-w-none">
+                      <ReactMarkdown
+                        components={{
+                          h1: ({ children }) => (
+                            <h1 className="text-2xl font-bold text-calm-900 mb-4 pb-3 border-b-4 border-primary-500">{children}</h1>
+                          ),
+                          h2: ({ children }) => (
+                            <h2 className="text-xl font-semibold text-calm-800 mt-6 mb-3">{children}</h2>
+                          ),
+                          h3: ({ children }) => (
+                            <h3 className="text-lg font-medium text-calm-700 mt-4 mb-2">{children}</h3>
+                          ),
+                          p: ({ children }) => (
+                            <p className="text-calm-600 mb-4 leading-relaxed">{children}</p>
+                          ),
+                          ul: ({ children }) => (
+                            <ul className="space-y-2 mb-4">{children}</ul>
+                          ),
+                          li: ({ children }) => (
+                            <li className="flex items-start gap-2 text-calm-600">
+                              <span className="w-2 h-2 bg-primary-500 rounded-full mt-2 shrink-0" />
+                              <span>{children}</span>
+                            </li>
+                          ),
+                          blockquote: ({ children }) => (
+                            <blockquote className="border-l-4 border-primary-400 bg-primary-50 pl-4 py-3 my-4 rounded-r-lg italic text-calm-700">
+                              {children}
+                            </blockquote>
+                          ),
+                          strong: ({ children }) => (
+                            <strong className="font-semibold text-calm-900">{children}</strong>
+                          ),
+                        }}
+                      >
+                        {slideContents[currentSlideIndex]}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div className="text-center text-calm-500 flex flex-col items-center justify-center h-full">
+                      <Monitor size={64} className="mx-auto mb-4 opacity-50" />
+                      <p className="text-lg text-calm-700">Waiting for presentation...</p>
+                      <p className="text-sm mt-2 text-calm-500">The slide content will appear here</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Navigation Controls at Bottom */}
+                <div className="p-4 bg-calm-100 border-t border-calm-200 flex items-center justify-center gap-4">
+                  <button
+                    onClick={prevSlide}
+                    disabled={currentSlideIndex === 0}
+                    className="p-2 rounded-lg bg-white border border-calm-300 text-calm-600 hover:bg-calm-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+                  
+                  {/* Slide Dots */}
+                  <div className="flex items-center gap-1.5">
+                    {content?.slides.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setCurrentSlideIndex(index)}
+                        className={`w-2.5 h-2.5 rounded-full transition-all ${
+                          index === currentSlideIndex 
+                            ? 'bg-primary-500 w-6' 
+                            : 'bg-calm-300 hover:bg-calm-400'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  
+                  <button
+                    onClick={nextSlide}
+                    disabled={currentSlideIndex === (content?.slides.length || 1) - 1}
+                    className="p-2 rounded-lg bg-white border border-calm-300 text-calm-600 hover:bg-calm-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+                  >
+                    <ChevronRight size={20} />
+                  </button>
                 </div>
               </div>
             </div>
@@ -650,41 +1723,82 @@ export default function PresentationView() {
           </div>
         )}
 
-        {/* Chat Panel - Slides out from right */}
+        {/* Participants & Chat Panel */}
         {showChat && (
           <div className="w-80 bg-white/90 backdrop-blur-xl rounded-2xl border border-calm-200 shadow-lg flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-calm-200">
-              <div className="flex items-center gap-2">
-                <MessageSquare size={18} className="text-primary-500" />
-                <span className="font-semibold text-calm-900">Session Chat</span>
+            {/* Participants Grid */}
+            <div className="border-b border-calm-200">
+              <div className="flex items-center justify-between px-4 py-2 bg-calm-50">
+                <div className="flex items-center gap-2">
+                  <Users size={16} className="text-primary-500" />
+                  <span className="font-semibold text-calm-900 text-sm">Participants</span>
+                </div>
+                <span className="text-xs text-calm-500 bg-success-100 text-success-700 px-2 py-0.5 rounded-full">
+                  {participants.filter(p => p.isOnline && p.id !== '1').length} online
+                </span>
               </div>
-              <span className="text-xs text-calm-500 bg-calm-100 px-2 py-1 rounded-full">
-                <Users size={12} className="inline mr-1" />
-                {messages.filter(m => m.senderType === 'trainee').length + 1} online
-              </span>
+              
+              {/* Participant Grid - Excludes trainer (shown on live screen) */}
+              <div className="p-2 grid grid-cols-5 gap-1.5">
+                {participants.filter(p => p.id !== '1').map((participant) => (
+                  <div
+                    key={participant.id}
+                    className="relative group"
+                    title={participant.name}
+                  >
+                    <div className={`w-12 h-12 rounded-lg ${participant.color} flex items-center justify-center text-white font-semibold text-sm shadow-sm ${
+                      !participant.isOnline ? 'opacity-40 grayscale' : ''
+                    }`}>
+                      {participant.initials}
+                    </div>
+                    {/* Online indicator */}
+                    <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
+                      participant.isOnline ? 'bg-success-500' : 'bg-calm-400'
+                    }`} />
+                    {/* Mute indicator */}
+                    {participant.isMuted && participant.isOnline && (
+                      <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-danger-500 rounded-full flex items-center justify-center">
+                        <VolumeX size={10} className="text-white" />
+                      </div>
+                    )}
+                    {/* Hover tooltip */}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-calm-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                      {participant.name}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Chat Header */}
+            <div className="flex items-center justify-between px-4 py-2 border-b border-calm-200 bg-calm-50">
+              <div className="flex items-center gap-2">
+                <MessageSquare size={16} className="text-primary-500" />
+                <span className="font-semibold text-calm-900 text-sm">Session Chat</span>
+              </div>
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-calm-50">
+            <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-calm-50 min-h-[150px]">
               {messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={`rounded-xl p-3 ${
+                  className={`rounded-lg p-2 ${
                     msg.senderType === 'trainer'
-                      ? 'bg-primary-100 border-l-4 border-primary-500'
+                      ? 'bg-primary-100 border-l-3 border-primary-500'
                       : msg.senderName === 'You'
                       ? 'bg-accent-100 ml-4'
                       : 'bg-white border border-calm-200'
                   }`}
                 >
-                  <div className="flex items-center justify-between text-xs mb-1">
+                  <div className="flex items-center justify-between text-xs mb-0.5">
                     <span className={`font-medium ${
                       msg.senderType === 'trainer' ? 'text-primary-700' : 'text-calm-700'
                     }`}>
                       {msg.senderName}
                       {msg.senderType === 'trainer' && ' 🎓'}
                     </span>
-                    <span className="text-calm-400">{formatTime(msg.timestamp)}</span>
+                    <span className="text-calm-400 text-[10px]">{formatTime(msg.timestamp)}</span>
                   </div>
                   <p className="text-sm text-calm-800">{msg.message}</p>
                 </div>
@@ -693,7 +1807,7 @@ export default function PresentationView() {
             </div>
 
             {/* Message Input */}
-            <div className="p-3 border-t border-calm-200 bg-white">
+            <div className="p-2 border-t border-calm-200 bg-white">
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -701,14 +1815,14 @@ export default function PresentationView() {
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
                   placeholder="Type a message..."
-                  className="flex-1 bg-calm-50 border border-calm-200 rounded-xl px-4 py-2.5 text-calm-900 placeholder:text-calm-400 focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                  className="flex-1 bg-calm-50 border border-calm-200 rounded-lg px-3 py-2 text-sm text-calm-900 placeholder:text-calm-400 focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
                 />
                 <button
                   onClick={sendMessage}
                   disabled={!newMessage.trim()}
-                  className="p-2.5 bg-primary-500 hover:bg-primary-600 text-white disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors"
+                  className="p-2 bg-primary-500 hover:bg-primary-600 text-white disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                 >
-                  <Send size={18} />
+                  <Send size={16} />
                 </button>
               </div>
             </div>
@@ -743,9 +1857,9 @@ export default function PresentationView() {
 // Helper functions for demo content
 function getDayTitle(week: number, day: number): string {
   const dayData: Record<number, string[]> = {
-    1: ['Welcome & Introduction', 'Initial Assessments', 'Programme Overview', 'Tools & Setup'],
-    2: ['Computer Basics', 'Internet & Email', 'File Management', 'Online Safety'],
-    3: ['Written Communication', 'Video Calls & Meetings', 'Team Collaboration', 'Feedback & Reflection'],
+    1: ['Welcome & Introduction', 'Assessment & Support Mapping', 'Confidence, Communication & Voice', 'Expectations, Boundaries & Pacing'],
+    2: ['Skills Foundation', 'Communication Skills', 'Problem-Solving & Critical Thinking', 'Time Management & Organization'],
+    3: ['Leadership & Influence', 'Project Management Basics', 'Digital Skills & Technology', 'Career Planning & Next Steps'],
     4: ['Critical Thinking', 'Creative Problem Solving', 'Decision Making', 'Innovation Workshop'],
     5: ['CV Building', 'Job Searching', 'Interview Skills', 'Personal Branding'],
     6: ['Project Planning', 'Project Development', 'Presentation Prep', 'Graduation & Next Steps'],
@@ -755,9 +1869,9 @@ function getDayTitle(week: number, day: number): string {
 
 function getDayOverview(week: number, day: number): string {
   const dayFocuses: Record<number, string[]> = {
-    1: ['Getting to know each other and the programme', 'Understanding baseline skills', 'Understanding the 6-week journey', 'Setting up required tools'],
-    2: ['Understanding hardware and software', 'Navigating the web and email', 'Organizing digital files', 'Staying safe online'],
-    3: ['Professional writing skills', 'Effective video communication', 'Working together remotely', 'Giving and receiving feedback'],
+    1: ['Getting to know each other and the programme', 'Understanding assessment vs testing, mapping support strategies', 'Rebuilding confidence, understanding communication styles, finding your voice', 'Setting healthy expectations, understanding boundaries, learning sustainable pacing'],
+    2: ['Building practical skills foundation and assessment', 'Professional communication framework and practice', 'Structured problem-solving and analytical thinking', 'Time management techniques and organizational skills'],
+    3: ['Leadership principles and influence techniques', 'Project management fundamentals and tools', 'Digital skills and technology proficiency', 'Career planning and professional development'],
     4: ['Analyzing information effectively', 'Generating creative solutions', 'Making informed decisions', 'Putting skills into practice'],
     5: ['Creating an effective CV', 'Finding opportunities', 'Preparing for interviews', 'Building your professional presence'],
     6: ['Planning your final project', 'Building and refining', 'Preparing your presentation', 'Celebrating and looking forward'],

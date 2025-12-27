@@ -16,6 +16,7 @@ import {
   CheckCircle,
   BookOpen,
   Video,
+  Edit3,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -92,17 +93,363 @@ export default function WeekDetail() {
   const [expandedActivities, setExpandedActivities] = useState<Set<string>>(new Set());
   const [completedOutcomes, setCompletedOutcomes] = useState<Set<string>>(new Set());
   const [activeSection, setActiveSection] = useState<'overview' | 'activities' | 'notes' | 'resources'>('overview');
+  const [actualSlides, setActualSlides] = useState<string[]>([]);
+  const [slideContents, setSlideContents] = useState<string[]>([]);
 
   useEffect(() => {
+    // Clear current slides when changing days
+    setActualSlides([]);
+    setSlideContents([]);
     loadWeekContent();
-  }, [weekNumber]);
+  }, [weekNumber, selectedDay]);
 
   const loadWeekContent = async () => {
     const weekNum = parseInt(weekNumber || '1');
+    console.log('Loading week content for week:', weekNum, 'day:', selectedDay);
     
-    // Generate demo content for the week with 4 days
-    const weekData = generateWeekContent(weekNum);
-    setContent(weekData);
+    // Try to load slides for any week that has content
+    if (weekNum <= 6) { // Support weeks 1-6 which have slide content
+      console.log(`Attempting to load slides for week ${weekNum}, day ${selectedDay}...`);
+      
+      if (window.electronAPI?.content?.getWeekSlides) {
+        try {
+          console.log('ElectronAPI available, attempting to load slides...');
+          const slides = await window.electronAPI.content.getWeekSlides(weekNum, selectedDay) || [];
+          console.log(`Loaded ${slides.length} slides for week ${weekNum} day ${selectedDay}:`, slides);
+          
+          if (slides.length > 0) {
+            setActualSlides(slides);
+            
+            // Load slide contents
+            const contents: string[] = [];
+            for (const slidePath of slides) {
+              if (slidePath.endsWith('.md')) {
+                const content = await window.electronAPI.content.getSlideContent(slidePath) || '';
+                contents.push(content);
+              } else {
+                contents.push(slidePath);
+              }
+            }
+            setSlideContents(contents);
+            
+            const weekData = generateWeekContent(weekNum, selectedDay, slides);
+            setContent(weekData);
+            setLoading(false);
+            return;
+          }
+        } catch (error) {
+          console.error('Error loading slides via electron API:', error);
+        }
+      }
+      
+      // Fallback: use hardcoded slide content only for week 1
+    if (weekNum === 1) {
+      console.log(`Using fallback slide content for week 1, day ${selectedDay}`);
+      const fallbackSlides = [
+        'slide-1.md', 'slide-2.md', 'slide-3.md', 'slide-4.md',
+        'slide-5.md', 'slide-6.md', 'slide-7.md', 'slide-8.md'
+      ];
+      const fallbackContents = selectedDay === 1 ? [
+        '# Slide 1: Welcome & Energiser\\n**Time: 10 minutes**\\n\\n## Purpose\\nReduce anxiety, establish psychological safety, and create belonging',
+        '# Slide 2: Main Learning Activity\\n**Time: 40 minutes**\\n\\n## What is RemoteAbility?\\n- A supportive, non-competitive training programme',
+        '# Slide 3: Break Time\\n**Time: 10 minutes**\\n\\n## Break Instructions\\n- Stretch your body\\n- Hydrate with water',
+        '# Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts\\nChoose 1-2 questions that feel right for the group',
+        '# Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Private Reflection Exercise\\n**Important: This is NOT assessed or collected**',
+        '# Slide 6: Wrap-Up & Preview\\n**Time: 10 minutes**\\n\\n## Key Messages\\n✅ **Attending today is an achievement**',
+        '# Slide 7: Trainer Audit & Evidence\\n**For Trainer Reference Only**\\n\\n## Required Documentation ✓',
+        '# Slide 8: Resources & Accessibility\\n\\n## Session Resources\\n- Attendance register\\n- Programme overview materials'
+      ] : selectedDay === 2 ? [
+        '# Day 2 Slide 1: Welcome & Assessment Overview\\n**Time: 10 minutes**\\n\\n## Purpose\\nWelcome back and introduce assessment concepts',
+        '# Day 2 Slide 2: Understanding Assessments\\n**Time: 40 minutes**\\n\\n## Key Concepts\\n- Assessment vs Testing\\n- Understanding vs Judging',
+        '# Day 2 Slide 3: Break Time\\n**Time: 10 minutes**\\n\\n## Break Instructions\\n- Reflect on assessment concepts',
+        '# Day 2 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Topics\\n- Personal experiences with assessment',
+        '# Day 2 Slide 5: Support Mapping Practice\\n**Time: 25 minutes**\\n\\n## Practice Scenarios\\n- Real-world examples',
+        '# Day 2 Slide 6: Wrap-Up & Next Steps\\n**Time: 10 minutes**\\n\\n## Key Takeaways\\n- Assessment is understanding, not testing',
+        '# Day 2 Slide 7: Trainer Audit\\n**For Trainer Reference**\\n\\n## Session Completion\\n- Content delivered',
+        '# Day 2 Slide 8: Resources & References\\n\\n## Materials\\n- Assessment guidelines\\n- Support templates'
+      ] : selectedDay === 3 ? [
+        '# Day 3 Slide 1: Welcome & Energiser\\n**Time: 10 minutes**\\n\\n## Purpose\\nGentle activation and confidence normalisation',
+        '# Day 3 Slide 2: Understanding Confidence\\n**Time: 40 minutes**\\n\\n## Key Concepts\\n- Confidence is rebuilding, not born\\n- Communication styles diversity',
+        '# Day 3 Slide 3: Break Time\\n**Time: 10 minutes**\\n\\n## Break Instructions\\n- Step away from screens\\n- Grounding exercises',
+        '# Day 3 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Finding Your Voice\\n- Confidence challenges\\n- Communication comfort zones',
+        '# Day 3 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Safe Expression\\n- Practice work-related communication\\n- Multiple expression methods',
+        '# Day 3 Slide 6: Wrap-Up & Preview\\n**Time: 10 minutes**\\n\\n## Key Messages\\n- Voice matters and can be developed\\n- Preview Day 4 expectations',
+        '# Day 3 Slide 7: Trainer Audit\\n**For Trainer Reference**\\n\\n## Session Quality Check\\n- Communication focus assessment',
+        '# Day 3 Slide 8: Resources & References\\n\\n## Materials\\n- Communication practice templates\\n- Confidence building tools'
+      ] : [
+        '# Day 4 Slide 1: Welcome & Week Reflection\\n**Time: 10 minutes**\\n\\n## Purpose\\nWeek reflection and sustainable work introduction',
+        '# Day 4 Slide 2: Expectations & Boundaries\\n**Time: 40 minutes**\\n\\n## Key Concepts\\n- Healthy vs unhealthy expectations\\n- Professional boundary-setting\\n- Sustainable pacing skills',
+        '# Day 4 Slide 3: Break Time\\n**Time: 10 minutes**\\n\\n## Break Instructions\\n- Practice sustainable break-taking\\n- Movement and eye rest',
+        '# Day 4 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Burnout & Balance\\n- What overwhelms you at work?\\n- Warning signs and boundaries',
+        '# Day 4 Slide 5: Personal Pacing Plan\\n**Time: 25 minutes**\\n\\n## Private Exercise\\n- Create individual pacing strategy\\n- Energy peaks and break needs',
+        '# Day 4 Slide 6: Week 1 Wrap-Up\\n**Time: 10 minutes**\\n\\n## Key Messages\\n- Sustainable pacing is professional skill\\n- Week 1 completion celebration',
+        '# Day 4 Slide 7: Trainer Audit\\n**For Trainer Reference**\\n\\n## Week 1 Assessment\\n- Sustainability focus evaluation',
+        '# Day 4 Slide 8: Resources & Week 2 Preview\\n\\n## Materials\\n- Pacing plan templates\\n- Week 2 preparation guides'
+      ];
+      
+      setActualSlides(fallbackSlides);
+      setSlideContents(fallbackContents);
+      
+      const weekData = generateWeekContent(weekNum, selectedDay, fallbackSlides);
+      setContent(weekData);
+    } else if (weekNum === 2) {
+      // Week 2 fallback content
+      console.log(`Using fallback slide content for week 2, day ${selectedDay}`);
+      const fallbackSlides = [
+        'slide-1.md', 'slide-2.md', 'slide-3.md', 'slide-4.md',
+        'slide-5.md', 'slide-6.md', 'slide-7.md', 'slide-8.md'
+      ];
+      const fallbackContents = selectedDay === 1 ? [
+        '# Week 2 Day 1 Slide 1: Welcome & Skills Foundation\\n**Time: 10 minutes**\\n\\n## Purpose\\nWelcome to Week 2 and introduce practical skills focus',
+        '# Week 2 Day 1 Slide 2: Practical Skills Foundation\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Skills vs knowledge\\n- Foundation skill areas',
+        '# Week 2 Day 1 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nEncourage reflection on skill development',
+        '# Week 2 Day 1 Slide 4: Group Discussion – Skill Priorities\\n**Time: 25 minutes**\\n\\n## Discussion Prompts\\n- Which skills feel most relevant?',
+        '# Week 2 Day 1 Slide 5: Practice Exercise – Skills Assessment\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nPrivate reflection on skills',
+        '# Week 2 Day 1 Slide 6: Wrap-Up & Day 2 Preview\\n**Time: 10 minutes**\\n\\n## Key Reinforcement\\nSkills develop through practice',
+        '# Week 2 Day 1 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference Only**\\n\\n## Session Documentation',
+        '# Week 2 Day 1 Slide 8: Resources & References\\n\\n## Session Materials\\n- Skills assessment tools'
+      ] : selectedDay === 2 ? [
+        '# Week 2 Day 2 Slide 1: Welcome & Communication Focus\\n**Time: 10 minutes**\\n\\n## Purpose\\nIntroduce communication skills',
+        '# Week 2 Day 2 Slide 2: Communication Skills Framework\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Professional communication components',
+        '# Week 2 Day 2 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nProcess communication concepts',
+        '# Week 2 Day 2 Slide 4: Group Discussion – Communication Challenges\\n**Time: 25 minutes**\\n\\n## Discussion Prompts',
+        '# Week 2 Day 2 Slide 5: Practice Exercise – Communication Scenarios\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nStructured practice',
+        '# Week 2 Day 2 Slide 6: Wrap-Up & Day 3 Preview\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 2 Day 2 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 2 Day 2 Slide 8: Resources & References\\n\\n## Session Materials\\n- Communication skill resources'
+      ] : selectedDay === 3 ? [
+        '# Week 2 Day 3 Slide 1: Welcome & Problem-Solving Focus\\n**Time: 10 minutes**\\n\\n## Purpose\\nIntroduce structured problem-solving',
+        '# Week 2 Day 3 Slide 2: Problem-Solving Framework\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Structured problem-solving process',
+        '# Week 2 Day 3 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nAllow problem-solving concepts to process',
+        '# Week 2 Day 3 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts',
+        '# Week 2 Day 3 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nStructured practice',
+        '# Week 2 Day 3 Slide 6: Wrap-Up & Day 4 Preview\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 2 Day 3 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 2 Day 3 Slide 8: Resources & References\\n\\n## Session Materials'
+      ] : [
+        '# Week 2 Day 4 Slide 1: Welcome & Time Management Focus\\n**Time: 10 minutes**\\n\\n## Purpose\\nIntroduce time management skills',
+        '# Week 2 Day 4 Slide 2: Time Management & Organization\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Time management techniques',
+        '# Week 2 Day 4 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nProcess time management concepts',
+        '# Week 2 Day 4 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts',
+        '# Week 2 Day 4 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nPersonal planning',
+        '# Week 2 Day 4 Slide 6: Wrap-Up & Week 3 Preview\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 2 Day 4 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 2 Day 4 Slide 8: Resources & References\\n\\n## Session Materials'
+      ];
+      
+      setActualSlides(fallbackSlides);
+      setSlideContents(fallbackContents);
+      
+      const weekData = generateWeekContent(weekNum, selectedDay, fallbackSlides);
+      setContent(weekData);
+    } else if (weekNum === 3) {
+      // Week 3 fallback content
+      console.log(`Using fallback slide content for week 3, day ${selectedDay}`);
+      const fallbackSlides = [
+        'slide-1.md', 'slide-2.md', 'slide-3.md', 'slide-4.md',
+        'slide-5.md', 'slide-6.md', 'slide-7.md', 'slide-8.md'
+      ];
+      const fallbackContents = selectedDay === 1 ? [
+        '# Week 3 Day 1 Slide 1: Welcome & Leadership Focus\\n**Time: 10 minutes**\\n\\n## Purpose\\nIntroduce leadership principles',
+        '# Week 3 Day 1 Slide 2: Leadership & Influence\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Leadership principles',
+        '# Week 3 Day 1 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nProcess leadership concepts',
+        '# Week 3 Day 1 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts',
+        '# Week 3 Day 1 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nLeadership exploration',
+        '# Week 3 Day 1 Slide 6: Wrap-Up & Day 2 Preview\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 3 Day 1 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 3 Day 1 Slide 8: Resources & References\\n\\n## Session Materials'
+      ] : selectedDay === 2 ? [
+        '# Week 3 Day 2 Slide 1: Welcome & Project Management\\n**Time: 10 minutes**\\n\\n## Purpose\\nIntroduce project management',
+        '# Week 3 Day 2 Slide 2: Project Management Basics\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Project management fundamentals',
+        '# Week 3 Day 2 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nProcess project concepts',
+        '# Week 3 Day 2 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts',
+        '# Week 3 Day 2 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nProject planning',
+        '# Week 3 Day 2 Slide 6: Wrap-Up & Day 3 Preview\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 3 Day 2 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 3 Day 2 Slide 8: Resources & References\\n\\n## Session Materials'
+      ] : selectedDay === 3 ? [
+        '# Week 3 Day 3 Slide 1: Welcome & Digital Skills\\n**Time: 10 minutes**\\n\\n## Purpose\\nIntroduce digital skills',
+        '# Week 3 Day 3 Slide 2: Digital Skills & Technology\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Digital skills and tools',
+        '# Week 3 Day 3 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nProcess digital concepts',
+        '# Week 3 Day 3 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts',
+        '# Week 3 Day 3 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nDigital exploration',
+        '# Week 3 Day 3 Slide 6: Wrap-Up & Day 4 Preview\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 3 Day 3 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 3 Day 3 Slide 8: Resources & References\\n\\n## Session Materials'
+      ] : [
+        '# Week 3 Day 4 Slide 1: Welcome & Career Planning\\n**Time: 10 minutes**\\n\\n## Purpose\\nIntroduce career planning',
+        '# Week 3 Day 4 Slide 2: Career Planning & Next Steps\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Career planning frameworks',
+        '# Week 3 Day 4 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nProcess career concepts',
+        '# Week 3 Day 4 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts',
+        '# Week 3 Day 4 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nCareer planning',
+        '# Week 3 Day 4 Slide 6: Wrap-Up & Programme Reflection\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 3 Day 4 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 3 Day 4 Slide 8: Resources & References\\n\\n## Session Materials'
+      ];
+      
+      setActualSlides(fallbackSlides);
+      setSlideContents(fallbackContents);
+      
+      const weekData = generateWeekContent(weekNum, selectedDay, fallbackSlides);
+      setContent(weekData);
+    } else if (weekNum === 4) {
+      // Week 4 fallback content - Critical Thinking & Creativity
+      console.log(`Using fallback slide content for week 4, day ${selectedDay}`);
+      const fallbackSlides = [
+        'slide-1.md', 'slide-2.md', 'slide-3.md', 'slide-4.md',
+        'slide-5.md', 'slide-6.md', 'slide-7.md', 'slide-8.md'
+      ];
+      const fallbackContents = selectedDay === 1 ? [
+        '# Week 4 Day 1 Slide 1: Welcome & Critical Thinking\\n**Time: 10 minutes**\\n\\n## Purpose\\nIntroduce critical thinking skills',
+        '# Week 4 Day 1 Slide 2: Critical Thinking Framework\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Analytical thinking\\n- Evaluating information',
+        '# Week 4 Day 1 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nProcess critical thinking concepts',
+        '# Week 4 Day 1 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts\\nCritical analysis exercises',
+        '# Week 4 Day 1 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nCritical thinking scenarios',
+        '# Week 4 Day 1 Slide 6: Wrap-Up & Day 2 Preview\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 4 Day 1 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 4 Day 1 Slide 8: Resources & References\\n\\n## Session Materials'
+      ] : selectedDay === 2 ? [
+        '# Week 4 Day 2 Slide 1: Welcome & Creative Problem Solving\\n**Time: 10 minutes**\\n\\n## Purpose\\nIntroduce creative thinking',
+        '# Week 4 Day 2 Slide 2: Creative Problem Solving\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Brainstorming techniques\\n- Innovation mindset',
+        '# Week 4 Day 2 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nCreative refresh',
+        '# Week 4 Day 2 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts\\nCreativity challenges',
+        '# Week 4 Day 2 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nCreative exercises',
+        '# Week 4 Day 2 Slide 6: Wrap-Up & Day 3 Preview\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 4 Day 2 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 4 Day 2 Slide 8: Resources & References\\n\\n## Session Materials'
+      ] : selectedDay === 3 ? [
+        '# Week 4 Day 3 Slide 1: Welcome & Decision Making\\n**Time: 10 minutes**\\n\\n## Purpose\\nIntroduce decision making frameworks',
+        '# Week 4 Day 3 Slide 2: Decision Making Framework\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Decision models\\n- Risk assessment',
+        '# Week 4 Day 3 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nProcess decision concepts',
+        '# Week 4 Day 3 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts\\nDecision scenarios',
+        '# Week 4 Day 3 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nDecision practice',
+        '# Week 4 Day 3 Slide 6: Wrap-Up & Day 4 Preview\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 4 Day 3 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 4 Day 3 Slide 8: Resources & References\\n\\n## Session Materials'
+      ] : [
+        '# Week 4 Day 4 Slide 1: Welcome & Innovation Workshop\\n**Time: 10 minutes**\\n\\n## Purpose\\nApply skills in innovation context',
+        '# Week 4 Day 4 Slide 2: Innovation Workshop\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Innovation principles\\n- Real-world application',
+        '# Week 4 Day 4 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nCreative break',
+        '# Week 4 Day 4 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts\\nInnovation ideas',
+        '# Week 4 Day 4 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nInnovation project',
+        '# Week 4 Day 4 Slide 6: Week 4 Wrap-Up\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 4 Day 4 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 4 Day 4 Slide 8: Resources & Week 5 Preview\\n\\n## Session Materials'
+      ];
+      
+      setActualSlides(fallbackSlides);
+      setSlideContents(fallbackContents);
+      
+      const weekData = generateWeekContent(weekNum, selectedDay, fallbackSlides);
+      setContent(weekData);
+    } else if (weekNum === 5) {
+      // Week 5 fallback content - Professional Development
+      console.log(`Using fallback slide content for week 5, day ${selectedDay}`);
+      const fallbackSlides = [
+        'slide-1.md', 'slide-2.md', 'slide-3.md', 'slide-4.md',
+        'slide-5.md', 'slide-6.md', 'slide-7.md', 'slide-8.md'
+      ];
+      const fallbackContents = selectedDay === 1 ? [
+        '# Week 5 Day 1 Slide 1: Welcome & CV Building\\n**Time: 10 minutes**\\n\\n## Purpose\\nIntroduce CV building skills',
+        '# Week 5 Day 1 Slide 2: CV Building Workshop\\n**Time: 40 minutes**\\n\\n## Core Content\\n- CV structure\\n- Highlighting strengths',
+        '# Week 5 Day 1 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nCV reflection',
+        '# Week 5 Day 1 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts\\nCV challenges',
+        '# Week 5 Day 1 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nCV drafting',
+        '# Week 5 Day 1 Slide 6: Wrap-Up & Day 2 Preview\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 5 Day 1 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 5 Day 1 Slide 8: Resources & References\\n\\n## Session Materials'
+      ] : selectedDay === 2 ? [
+        '# Week 5 Day 2 Slide 1: Welcome & Job Searching\\n**Time: 10 minutes**\\n\\n## Purpose\\nIntroduce job search strategies',
+        '# Week 5 Day 2 Slide 2: Job Search Strategies\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Finding opportunities\\n- Application tips',
+        '# Week 5 Day 2 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nJob search reflection',
+        '# Week 5 Day 2 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts\\nJob search experiences',
+        '# Week 5 Day 2 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nJob search practice',
+        '# Week 5 Day 2 Slide 6: Wrap-Up & Day 3 Preview\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 5 Day 2 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 5 Day 2 Slide 8: Resources & References\\n\\n## Session Materials'
+      ] : selectedDay === 3 ? [
+        '# Week 5 Day 3 Slide 1: Welcome & Interview Skills\\n**Time: 10 minutes**\\n\\n## Purpose\\nIntroduce interview skills',
+        '# Week 5 Day 3 Slide 2: Interview Skills Workshop\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Interview preparation\\n- Common questions',
+        '# Week 5 Day 3 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nInterview prep',
+        '# Week 5 Day 3 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts\\nInterview experiences',
+        '# Week 5 Day 3 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nMock interviews',
+        '# Week 5 Day 3 Slide 6: Wrap-Up & Day 4 Preview\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 5 Day 3 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 5 Day 3 Slide 8: Resources & References\\n\\n## Session Materials'
+      ] : [
+        '# Week 5 Day 4 Slide 1: Welcome & Personal Branding\\n**Time: 10 minutes**\\n\\n## Purpose\\nIntroduce personal branding',
+        '# Week 5 Day 4 Slide 2: Personal Branding Workshop\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Professional identity\\n- Online presence',
+        '# Week 5 Day 4 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nBranding reflection',
+        '# Week 5 Day 4 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts\\nPersonal brand ideas',
+        '# Week 5 Day 4 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nBrand development',
+        '# Week 5 Day 4 Slide 6: Week 5 Wrap-Up\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 5 Day 4 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 5 Day 4 Slide 8: Resources & Week 6 Preview\\n\\n## Session Materials'
+      ];
+      
+      setActualSlides(fallbackSlides);
+      setSlideContents(fallbackContents);
+      
+      const weekData = generateWeekContent(weekNum, selectedDay, fallbackSlides);
+      setContent(weekData);
+    } else if (weekNum === 6) {
+      // Week 6 fallback content - Project & Graduation
+      console.log(`Using fallback slide content for week 6, day ${selectedDay}`);
+      const fallbackSlides = [
+        'slide-1.md', 'slide-2.md', 'slide-3.md', 'slide-4.md',
+        'slide-5.md', 'slide-6.md', 'slide-7.md', 'slide-8.md'
+      ];
+      const fallbackContents = selectedDay === 1 ? [
+        '# Week 6 Day 1 Slide 1: Welcome & Project Planning\\n**Time: 10 minutes**\\n\\n## Purpose\\nIntroduce final project',
+        '# Week 6 Day 1 Slide 2: Project Planning Workshop\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Project selection\\n- Planning framework',
+        '# Week 6 Day 1 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nProject ideas',
+        '# Week 6 Day 1 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts\\nProject concepts',
+        '# Week 6 Day 1 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nProject planning',
+        '# Week 6 Day 1 Slide 6: Wrap-Up & Day 2 Preview\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 6 Day 1 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 6 Day 1 Slide 8: Resources & References\\n\\n## Session Materials'
+      ] : selectedDay === 2 ? [
+        '# Week 6 Day 2 Slide 1: Welcome & Project Development\\n**Time: 10 minutes**\\n\\n## Purpose\\nContinue project work',
+        '# Week 6 Day 2 Slide 2: Project Development Workshop\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Building projects\\n- Overcoming challenges',
+        '# Week 6 Day 2 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nProject refresh',
+        '# Week 6 Day 2 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts\\nProject progress',
+        '# Week 6 Day 2 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nProject building',
+        '# Week 6 Day 2 Slide 6: Wrap-Up & Day 3 Preview\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 6 Day 2 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 6 Day 2 Slide 8: Resources & References\\n\\n## Session Materials'
+      ] : selectedDay === 3 ? [
+        '# Week 6 Day 3 Slide 1: Welcome & Presentation Prep\\n**Time: 10 minutes**\\n\\n## Purpose\\nPrepare for final presentations',
+        '# Week 6 Day 3 Slide 2: Presentation Skills\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Presentation tips\\n- Confidence building',
+        '# Week 6 Day 3 Slide 3: Break\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nPresentation prep',
+        '# Week 6 Day 3 Slide 4: Group Discussion\\n**Time: 25 minutes**\\n\\n## Discussion Prompts\\nPresentation practice',
+        '# Week 6 Day 3 Slide 5: Practice Exercise\\n**Time: 25 minutes**\\n\\n## Exercise Type\\nPractice sessions',
+        '# Week 6 Day 3 Slide 6: Wrap-Up & Day 4 Preview\\n**Time: 10 minutes**\\n\\n## Key Reinforcement',
+        '# Week 6 Day 3 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 6 Day 3 Slide 8: Resources & References\\n\\n## Session Materials'
+      ] : [
+        '# Week 6 Day 4 Slide 1: Welcome to Graduation Day!\\n**Time: 10 minutes**\\n\\n## Purpose\\nCelebrate achievements',
+        '# Week 6 Day 4 Slide 2: Final Presentations\\n**Time: 40 minutes**\\n\\n## Core Content\\n- Graduate presentations\\n- Celebration',
+        '# Week 6 Day 4 Slide 3: Break & Celebration Prep\\n**Time: 10 minutes**\\n\\n## Break Instructions\\nCelebration break',
+        '# Week 6 Day 4 Slide 4: Certificate Ceremony\\n**Time: 25 minutes**\\n\\n## Ceremony\\nCertificate presentations',
+        '# Week 6 Day 4 Slide 5: Reflection & Next Steps\\n**Time: 25 minutes**\\n\\n## Reflection\\nProgramme reflection',
+        '# Week 6 Day 4 Slide 6: Programme Wrap-Up\\n**Time: 10 minutes**\\n\\n## Celebration\\nFinal messages',
+        '# Week 6 Day 4 Slide 7: Trainer Audit & Evidence Notes\\n**For Trainer Reference**',
+        '# Week 6 Day 4 Slide 8: Resources & Staying Connected\\n\\n## Materials\\nAlumni resources'
+      ];
+      
+      setActualSlides(fallbackSlides);
+      setSlideContents(fallbackContents);
+      
+      const weekData = generateWeekContent(weekNum, selectedDay, fallbackSlides);
+      setContent(weekData);
+    } else {
+      // For other weeks, use default generation
+      console.log('Using default generation for week:', weekNum);
+      const weekData = generateWeekContent(weekNum, selectedDay);
+      setContent(weekData);
+    }
+    }
+    
     setLoading(false);
   };
 
@@ -126,9 +473,14 @@ export default function WeekDetail() {
     setCompletedOutcomes(newCompleted);
   };
 
-  const openSlides = (day: number) => {
-    // Navigate to presentation view for this specific day
-    window.location.href = `/present?week=${weekNumber}&day=${day}&role=trainer`;
+  const openSlides = (day: number, slideIndex?: number) => {
+    // Navigate to presentation view for this specific day and slide
+    const slideParam = slideIndex !== undefined ? `&slide=${slideIndex}` : '';
+    window.location.href = `/present?week=${weekNumber}&day=${day}&role=trainer${slideParam}`;
+  };
+
+  const openSingleSlide = (day: number, slideIndex: number) => {
+    openSlides(day, slideIndex);
   };
 
   if (loading) {
@@ -150,11 +502,11 @@ export default function WeekDetail() {
     );
   }
 
-  const weekNum = parseInt(weekNumber || '1');
   const currentDay = content.days[selectedDay - 1];
   const dayOutcomes = currentDay?.outcomes || [];
   const completedCount = dayOutcomes.filter(o => completedOutcomes.has(o.id)).length;
   const dayTotalOutcomes = dayOutcomes.length;
+  const weekNum = parseInt(weekNumber || '1');
 
   return (
     <div className="space-y-6">
@@ -291,18 +643,58 @@ export default function WeekDetail() {
                   Session Slides
                 </h3>
                 <div className="grid grid-cols-4 gap-3 mb-6">
-                  {currentDay.slides.slice(0, 8).map((_, i) => (
-                    <div
-                      key={i}
-                      className="aspect-video bg-calm-100 rounded-xl flex items-center justify-center text-calm-400 hover:bg-calm-200 cursor-pointer transition-colors border border-calm-200"
-                      onClick={() => openSlides(selectedDay)}
-                    >
-                      <div className="text-center">
-                        <Presentation size={20} className="mx-auto mb-1 opacity-50" />
-                        <span className="text-xs">Slide {i + 1}</span>
-                      </div>
-                    </div>
-                  ))}
+                  {currentDay.slides.slice(0, 8).map((slide, i) => {
+                    const isActualSlide = actualSlides.length > 0;
+                    const slideTitle = isActualSlide && slideContents[i] ? 
+                      slideContents[i].split('\n')[0].replace('# ', '').replace(/Slide \d+: /, '') : 
+                      `Slide ${i + 1}`;
+                    
+                    return (
+                      <div
+                        key={i}
+                        className="aspect-video bg-white rounded-xl border-2 border-calm-200 hover:border-primary-300 cursor-pointer transition-all hover:shadow-md group relative overflow-hidden"
+                          title={slideTitle}
+                        >
+                          {/* Edit button overlay */}
+                          {isActualSlide && slideContents[i] && slideContents[i].includes('#') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.location.href = `/present?week=${weekNumber}&day=${selectedDay}&role=trainer&slide=${i}&edit=true`;
+                              }}
+                              className="absolute top-2 right-2 p-1.5 bg-primary-500 hover:bg-primary-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10"
+                              title="Edit slide"
+                            >
+                              <Edit3 size={12} />
+                            </button>
+                          )}
+                          
+                          <div
+                            onClick={() => openSingleSlide(selectedDay, i)}
+                            className="w-full h-full"
+                          >
+                        {isActualSlide && slideContents[i] && slideContents[i].includes('#') ? (
+                          <div className="p-2 h-full overflow-hidden">
+                            <div className="text-[8px] leading-tight text-calm-600 line-clamp-6">
+                              <ReactMarkdown>{slideContents[i]}</ReactMarkdown>
+                            </div>
+                            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white pointer-events-none" />
+                          </div>
+                        ) : (
+                          <div className="h-full flex items-center justify-center text-calm-400 group-hover:text-primary-500 transition-colors">
+                            <div className="text-center">
+                              <Presentation size={20} className="mx-auto mb-1 opacity-50 group-hover:opacity-70" />
+                              <span className="text-xs">{slideTitle}</span>
+                            </div>
+                          </div>
+                        )}
+                        <div className="absolute bottom-1 right-1 bg-calm-800/80 text-white text-[10px] px-1.5 py-0.5 rounded">
+                          {i + 1}
+                        </div>
+                          </div>
+                        </div>
+                    );
+                  })}
                 </div>
                 <button
                   onClick={() => openSlides(selectedDay)}
@@ -500,20 +892,20 @@ export default function WeekDetail() {
 }
 
 // Helper function to generate week content with 4 days
-function generateWeekContent(weekNum: number): WeekContent {
+function generateWeekContent(weekNum: number, selectedDay?: number, actualSlides?: string[]): WeekContent {
   const weekTitles = [
-    'Onboarding & Assessment',
-    'Digital Skills Foundation',
-    'Communication & Collaboration',
+    'Foundation Week - Building Basics',
+    'Skills Development Week',
+    'Advanced Skills Week',
     'Problem Solving & Creativity',
     'Professional Development',
     'Project & Graduation',
   ];
 
   const weekOverviews = [
-    'Welcome to the programme! This week covers induction, assessments, and getting started.',
-    'Building essential digital literacy skills for the modern workplace.',
-    'Effective communication and teamwork in remote environments.',
+    'Building foundations for learning, communication, and sustainable work practices.',
+    'Practical skills building and application across key professional areas.',
+    'Leadership, project management, and career planning skills development.',
     'Creative thinking and problem-solving strategies.',
     'Career planning, CV writing, and interview preparation.',
     'Final project presentation and programme completion.',
@@ -521,16 +913,16 @@ function generateWeekContent(weekNum: number): WeekContent {
 
   const dayData: Record<number, { titles: string[]; focuses: string[] }> = {
     1: {
-      titles: ['Welcome & Introduction', 'Initial Assessments', 'Programme Overview', 'Tools & Setup'],
-      focuses: ['Getting to know each other and the programme', 'Understanding baseline skills', 'Understanding the 6-week journey', 'Setting up required tools and accounts'],
+      titles: ['Welcome & Introduction', 'Assessment & Support Mapping', 'Confidence, Communication & Voice', 'Expectations, Boundaries & Pacing'],
+      focuses: ['Getting to know each other and the programme', 'Understanding assessment vs testing, mapping support strategies', 'Rebuilding confidence, understanding communication styles, finding your voice', 'Setting healthy expectations, understanding boundaries, learning sustainable pacing'],
     },
     2: {
-      titles: ['Computer Basics', 'Internet & Email', 'File Management', 'Online Safety'],
-      focuses: ['Understanding hardware and software', 'Navigating the web and email communication', 'Organizing digital files effectively', 'Staying safe online'],
+      titles: ['Skills Foundation', 'Communication Skills', 'Problem-Solving & Critical Thinking', 'Time Management & Organization'],
+      focuses: ['Building practical skills foundation and assessment', 'Professional communication framework and practice', 'Structured problem-solving and analytical thinking', 'Time management techniques and organizational skills'],
     },
     3: {
-      titles: ['Written Communication', 'Video Calls & Meetings', 'Team Collaboration', 'Feedback & Reflection'],
-      focuses: ['Professional writing skills', 'Effective video communication', 'Working together remotely', 'Giving and receiving feedback'],
+      titles: ['Leadership & Influence', 'Project Management Basics', 'Digital Skills & Technology', 'Career Planning & Next Steps'],
+      focuses: ['Leadership principles and influence techniques', 'Project management fundamentals and tools', 'Digital skills and technology proficiency', 'Career planning and professional development'],
     },
     4: {
       titles: ['Critical Thinking', 'Creative Problem Solving', 'Decision Making', 'Innovation Workshop'],
@@ -553,7 +945,7 @@ function generateWeekContent(weekNum: number): WeekContent {
     title: currentWeekData.titles[dayNum - 1],
     duration: '2 hours',
     focus: currentWeekData.focuses[dayNum - 1],
-    slides: Array.from({ length: 8 }, (_, i) => `/slides/week${weekNum}/day${dayNum}/slide${i + 1}.png`),
+    slides: (dayNum === selectedDay && actualSlides && actualSlides.length > 0) ? actualSlides : Array.from({ length: 8 }, (_, i) => `/slides/week${weekNum}/day${dayNum}/slide${i + 1}.png`),
     trainerNotes: generateTrainerNotes(weekNum, dayNum, currentWeekData.titles[dayNum - 1]),
     activities: generateActivities(weekNum, dayNum),
     outcomes: generateOutcomes(weekNum, dayNum),

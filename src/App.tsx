@@ -8,6 +8,9 @@ import WeeksLibrary from './pages/WeeksLibrary';
 import WeekDetail from './pages/WeekDetail';
 import LiveClassroom from './pages/LiveClassroom';
 import PresentationView from './pages/PresentationView';
+import JoinSession from './pages/JoinSession';
+import TraineeSessionView from './pages/TraineeSessionView';
+import AdminDashboard from './pages/AdminDashboard';
 import Resources from './pages/Resources';
 import Policies from './pages/Policies';
 import People from './pages/People';
@@ -54,6 +57,15 @@ function App() {
     <Routes>
       {/* Presentation View - Full screen, no layout wrapper */}
       <Route path="/present" element={<PresentationView />} />
+      
+      {/* Join Session - For trainees to join */}
+      <Route path="/join" element={<JoinSession />} />
+      
+      {/* Trainee Session View - Live session for trainees */}
+      <Route path="/session-live" element={<TraineeSessionView />} />
+      
+      {/* Admin Dashboard - Password protected */}
+      <Route path="/admin" element={<AdminDashboard />} />
       
       {/* Main App Routes with Layout */}
       <Route path="/*" element={

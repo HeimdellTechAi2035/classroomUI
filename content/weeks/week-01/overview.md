@@ -13,44 +13,28 @@ By the end of this week, trainees will:
 
 ## Session 1: Welcome & Induction (2 hours)
 
-### Agenda
-1. **Welcome & Introductions** (15 mins)
-   - Trainer introduction
-   - Programme overview
-   - Icebreaker activity
+> **📋 Detailed Session Plan:** See [day-1-session.md](day-1-session.md) for complete trainer scripts, activities, and compliance notes.
 
-2. **Programme Overview** (30 mins)
-   - 6-week structure explained
-   - What to expect each week
-   - Assessment and progression
+### Quick Overview
+1. **Welcome & Energiser** (10 mins) - Reduce anxiety and create belonging
+2. **Main Learning Activity** (40 mins) - Programme introduction and expectations
+3. **Break** (10 mins) - Stretch and refresh
+4. **Group Discussion** (25 mins) - Participant experiences and hopes
+5. **Practice Exercise** (25 mins) - Private reflection (not assessed)
+6. **Wrap-up & Preview** (10 mins) - Positive reinforcement and next steps
 
-3. **Policies & Procedures** (20 mins)
-   - Safeguarding awareness
-   - Code of conduct
-   - Attendance expectations
-
-4. **Break** (15 mins)
-
-5. **Initial Assessment** (30 mins)
-   - Skills baseline quiz
-   - Individual support needs discussion
-
-6. **Wrap-up & Next Steps** (10 mins)
-   - Questions
-   - Homework assignment
-   - Preview of Session 2
-
-### Trainer Notes
+### Key Trainer Priorities
 - Create a welcoming, non-judgemental atmosphere
-- Some trainees may be nervous - reassure them
-- Have welcome packs ready before the session
-- Note any accessibility needs mentioned
-- If assessments reveal support needs, document discreetly
+- Emphasize that attendance is an achievement
+- Never force participation - passing is always allowed
+- Document attendance and any safeguarding concerns privately
+- Focus on psychological safety over performance
 
 ### Resources Needed
-- Welcome Pack (PDF)
-- Assessment Form (online)
-- Programme Overview Slides
+- [Detailed session plan](day-1-session.md)
+- Attendance register
+- Programme overview materials
+- Comfortable space for group discussion
 
 ---
 

@@ -94,7 +94,10 @@ export function setupIpcHandlers(
   // Content handlers
   ipcMain.handle('content:weeks:get', () => contentManager.getWeeks());
   ipcMain.handle('content:weeks:getOne', (_, weekNumber: number) => contentManager.getWeek(weekNumber));
-  ipcMain.handle('content:weeks:getSlides', (_, weekNumber: number) => contentManager.getWeekSlides(weekNumber));
+  ipcMain.handle('content:weeks:getSlides', (_, weekNumber: number, dayNumber?: number) => contentManager.getWeekSlides(weekNumber, dayNumber));
+  ipcMain.handle('content:getSlideContent', (_, slidePath: string) => contentManager.getSlideContent(slidePath));
+  ipcMain.handle('content:saveSlideContent', (_, slidePath: string, content: string) => contentManager.saveSlideContent(slidePath, content));
+  ipcMain.handle('content:getSlideContent', (_, slidePath: string) => contentManager.getSlideContent(slidePath));
   ipcMain.handle('content:weeks:getResources', (_, weekNumber: number) => contentManager.getWeekResources(weekNumber));
   ipcMain.handle('content:readFile', (_, filePath: string) => contentManager.readFile(filePath));
   ipcMain.handle('content:policies:get', () => contentManager.getPolicies());

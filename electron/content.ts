@@ -27,12 +27,12 @@ export class ContentManager {
 
   // Week titles mapping
   private weekTitles: Record<number, string> = {
-    1: 'Onboarding & Assessment',
-    2: 'Sales & Communication Training',
-    3: 'SEO Fundamentals',
-    4: 'AI Skills Development',
-    5: 'Supported Work Practice',
-    6: 'Deployment & Review',
+    1: 'Foundation Week - Building Basics',
+    2: 'Skills Development Week',
+    3: 'Advanced Skills Week',
+    4: 'Critical Thinking & Creativity',
+    5: 'Professional Development',
+    6: 'Project & Graduation',
   };
 
   // Get all weeks
@@ -101,14 +101,62 @@ export class ContentManager {
     };
   }
 
-  // Get slides for a week (as image paths or PPTX path)
-  getWeekSlides(weekNumber: number): string[] {
+  // Get slides for a week and day (as image paths, markdown paths, or PPTX path)
+  getWeekSlides(weekNumber: number, dayNumber: number = 1): string[] {
     const weekFolder = path.join(this.contentPath, 'weeks', `week-0${weekNumber}`);
-    const slidesFolder = path.join(weekFolder, 'slides');
     
-    // Check for images in slides folder
+    // First try day-specific slides folder
+    const daySpecificSlidesFolder = path.join(weekFolder, `day-${dayNumber}`, 'slides');
+    console.log('Looking for day-specific slides in:', daySpecificSlidesFolder);
+    console.log('Day-specific folder exists:', fs.existsSync(daySpecificSlidesFolder));
+    
+    if (fs.existsSync(daySpecificSlidesFolder)) {
+      const files = fs.readdirSync(daySpecificSlidesFolder);
+      console.log('Day-specific files found:', files);
+      
+      const markdownFiles = files
+        .filter(f => /\.md$/i.test(f))
+        .sort((a, b) => {
+          const numA = parseInt(a.match(/\d+/)?.[0] || '0');
+          const numB = parseInt(b.match(/\d+/)?.[0] || '0');
+          return numA - numB;
+        })
+        .map(f => path.join(daySpecificSlidesFolder, f));
+      
+      if (markdownFiles.length > 0) {
+        console.log('Day-specific markdown files found:', markdownFiles);
+        return markdownFiles;
+      }
+    }
+    
+    // Fall back to general week slides folder (for day 1 compatibility)
+    const slidesFolder = path.join(weekFolder, 'slides');
+    console.log('Looking for general slides in:', slidesFolder);
+    console.log('General slides folder exists:', fs.existsSync(slidesFolder));
+    
+    // Check for slides in slides folder
     if (fs.existsSync(slidesFolder)) {
       const files = fs.readdirSync(slidesFolder);
+      console.log('General files found in slides folder:', files);
+      
+      // First check for markdown slides
+      const markdownFiles = files
+        .filter(f => /\.md$/i.test(f))
+        .sort((a, b) => {
+          // Sort numerically if possible
+          const numA = parseInt(a.match(/\d+/)?.[0] || '0');
+          const numB = parseInt(b.match(/\d+/)?.[0] || '0');
+          return numA - numB;
+        })
+        .map(f => path.join(slidesFolder, f));
+      
+      console.log('General markdown files found:', markdownFiles);
+      
+      if (markdownFiles.length > 0) {
+        return markdownFiles;
+      }
+      
+      // Fall back to image files
       const imageFiles = files
         .filter(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f))
         .sort((a, b) => {
@@ -131,6 +179,46 @@ export class ContentManager {
     }
 
     return [];
+  }
+
+  // Get slide content for markdown slides
+  getSlideContent(slidePath: string): string {
+    console.log('Reading slide content from:', slidePath);
+    try {
+      if (fs.existsSync(slidePath) && slidePath.endsWith('.md')) {
+        const content = fs.readFileSync(slidePath, 'utf-8');
+        console.log('Successfully read content:', content.substring(0, 100) + '...');
+        return content;
+      } else {
+        console.log('Slide file does not exist or is not markdown:', slidePath);
+      }
+    } catch (error) {
+      console.error('Error reading slide content:', error);
+    }
+    return '';
+  }
+
+  // Save slide content for markdown slides
+  saveSlideContent(slidePath: string, content: string): void {
+    console.log('Saving slide content to:', slidePath);
+    try {
+      if (slidePath.endsWith('.md')) {
+        // Ensure the directory exists
+        const dir = path.dirname(slidePath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        
+        // Write the content
+        fs.writeFileSync(slidePath, content, 'utf-8');
+        console.log('Successfully saved slide content');
+      } else {
+        throw new Error('Can only save markdown (.md) files');
+      }
+    } catch (error) {
+      console.error('Error saving slide content:', error);
+      throw error;
+    }
   }
 
   // Get week resources

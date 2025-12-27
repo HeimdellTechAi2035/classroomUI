@@ -49,12 +49,12 @@ export default function WeeksLibrary() {
     } else {
       // Demo data
       setWeeks([
-        { weekNumber: 1, title: 'Onboarding & Assessment', overview: 'Welcome to the programme! This week covers induction, assessments, and getting started.', hasSlides: true, hasTrainerNotes: true, hasActivities: true, resources: ['welcome-pack.pdf', 'assessment-form.pdf'] },
-        { weekNumber: 2, title: 'Sales & Communication Training', overview: 'Develop essential sales and communication skills for customer interactions.', hasSlides: true, hasTrainerNotes: true, hasActivities: true, resources: ['sales-scripts.pdf'] },
-        { weekNumber: 3, title: 'SEO Fundamentals', overview: 'Learn the basics of Search Engine Optimization and digital marketing.', hasSlides: true, hasTrainerNotes: false, hasActivities: true, resources: [] },
-        { weekNumber: 4, title: 'AI Skills Development', overview: 'Introduction to AI tools and how to use them effectively in your work.', hasSlides: false, hasTrainerNotes: false, hasActivities: false, resources: [] },
-        { weekNumber: 5, title: 'Supported Work Practice', overview: 'Put your skills into practice with supported real-world tasks.', hasSlides: false, hasTrainerNotes: false, hasActivities: false, resources: [] },
-        { weekNumber: 6, title: 'Deployment & Review', overview: 'Final review, deployment preparation, and next steps planning.', hasSlides: false, hasTrainerNotes: false, hasActivities: false, resources: [] },
+        { weekNumber: 1, title: 'Foundation Week - Building Basics', overview: 'Building foundations for learning, communication, and sustainable work practices. Days: Welcome & Introduction, Assessment & Support, Confidence & Voice, Expectations & Boundaries.', hasSlides: true, hasTrainerNotes: true, hasActivities: true, resources: ['week-1-overview.pdf', 'foundation-skills.pdf'] },
+        { weekNumber: 2, title: 'Skills Development Week', overview: 'Practical skills building and application. Days: Skills Foundation, Communication Skills, Problem-Solving & Critical Thinking, Time Management & Organization.', hasSlides: true, hasTrainerNotes: true, hasActivities: true, resources: ['skills-framework.pdf', 'practice-exercises.pdf'] },
+        { weekNumber: 3, title: 'Advanced Skills Week', overview: 'Leadership, project management, and career planning. Days: Leadership & Influence, Project Management Basics, Digital Skills & Technology, Career Planning & Next Steps.', hasSlides: true, hasTrainerNotes: true, hasActivities: true, resources: ['leadership-guide.pdf', 'career-planning.pdf'] },
+        { weekNumber: 4, title: 'Critical Thinking & Creativity', overview: 'Developing analytical and creative problem-solving skills. Days: Critical Thinking, Creative Problem Solving, Decision Making, Innovation Workshop.', hasSlides: true, hasTrainerNotes: true, hasActivities: true, resources: ['critical-thinking.pdf', 'creativity-guide.pdf'] },
+        { weekNumber: 5, title: 'Professional Development', overview: 'Building professional skills for employment success. Days: CV Building, Job Searching, Interview Skills, Personal Branding.', hasSlides: true, hasTrainerNotes: true, hasActivities: true, resources: ['cv-templates.pdf', 'interview-guide.pdf'] },
+        { weekNumber: 6, title: 'Project & Graduation', overview: 'Final project completion and programme graduation. Days: Project Planning, Project Development, Presentation Prep, Graduation & Next Steps.', hasSlides: true, hasTrainerNotes: true, hasActivities: true, resources: ['project-guide.pdf', 'graduation.pdf'] },
       ]);
     }
     setLoading(false);

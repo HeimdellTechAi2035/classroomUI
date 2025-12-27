@@ -80,6 +80,9 @@ interface ElectronAPI {
   content: {
     getWeeks: () => Promise<any[]>;
     getWeekContent: (weekNumber: number) => Promise<any>;
+    getWeekSlides: (weekNumber: number, dayNumber?: number) => Promise<string[]>;
+    getSlideContent: (slidePath: string) => Promise<string>;
+    saveSlideContent: (slidePath: string, content: string) => Promise<void>;
     getPolicies: () => Promise<any[]>;
     getResources: () => Promise<any[]>;
     openResource: (path: string) => Promise<void>;
