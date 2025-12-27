@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import {
   Monitor,
   MessageSquare,
@@ -32,6 +32,7 @@ import {
   WifiOff,
   Play,
   Square,
+  ShieldAlert,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import RecordingConsent from '../components/RecordingConsent';
@@ -75,12 +76,25 @@ type ViewMode = 'split' | 'content' | 'classroom';
 type ContentTab = 'slides' | 'notes' | 'activities' | 'outcomes';
 
 export default function PresentationView() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const weekNumber = parseInt(searchParams.get('week') || '1');
   const dayNumber = parseInt(searchParams.get('day') || '1');
   const startSlideIndex = parseInt(searchParams.get('slide') || '0');
   const shouldStartEditing = searchParams.get('edit') === 'true';
-  const isTrainer = searchParams.get('role') === 'trainer';
+  const roleParam = searchParams.get('role');
+  
+  // Trainer authentication - must have role=trainer in URL
+  // Trainees should use /join to access sessions
+  const isTrainer = roleParam === 'trainer';
+  
+  // Redirect non-trainers to the join page
+  useEffect(() => {
+    if (roleParam && roleParam !== 'trainer') {
+      // If someone tries to access with role=trainee, redirect to join page
+      navigate('/join');
+    }
+  }, [roleParam, navigate]);
   
   // View State
   const [viewMode, setViewMode] = useState<ViewMode>('split');
@@ -991,11 +1005,11 @@ Preparing for burnout and balance discussions`,
   };
 
   const copyShareLink = () => {
-    // If session is active, share the join link with room code
-    // Otherwise share the direct presentation link
+    // Always share the join link - trainees must use /join to access sessions
+    // If session is active, include the room code
     const url = isSessionActive && roomCode
       ? `${window.location.origin}/join?code=${roomCode}`
-      : `${window.location.origin}/present?week=${weekNumber}&day=${dayNumber}&role=trainee`;
+      : `${window.location.origin}/join`;
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -1014,6 +1028,29 @@ Preparing for burnout and balance discussions`,
     }
     setCompletedOutcomes(newSet);
   };
+
+  // Show access denied for non-trainers who somehow bypass the redirect
+  if (!isTrainer) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-calm-50 via-white to-primary-50 flex items-center justify-center p-4">
+        <div className="max-w-md text-center">
+          <div className="w-20 h-20 bg-danger-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <ShieldAlert size={40} className="text-danger-500" />
+          </div>
+          <h1 className="text-2xl font-bold text-calm-900 mb-3">Trainer Access Only</h1>
+          <p className="text-calm-600 mb-6">
+            This page is for trainers only. If you're a trainee, please use the join link provided by your trainer.
+          </p>
+          <button
+            onClick={() => navigate('/join')}
+            className="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white rounded-xl font-semibold transition-colors"
+          >
+            Go to Join Page
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!content) {
     return (

@@ -51,13 +51,12 @@ export default function TraineeSessionView() {
     // Check if already connected with session data
     if (wsService.isConnected() && wsService.getRoomCode() === roomCode) {
       setIsConnected(true);
+      // Load slides with default week/day - will update when session data arrives
+      loadSlideContent(1, 1);
     } else {
-      // Reconnect and rejoin
+      // Reconnect and rejoin - slides will load when session joins
       reconnectToSession();
     }
-    
-    // Load slide content
-    loadSlideContent();
     
     return () => {
       wsService.off('slide-changed', handleSlideChange);
@@ -86,6 +85,8 @@ export default function TraineeSessionView() {
         setMessages(data.session.messages);
         setParticipants(data.session.participants.filter((p: Participant) => !p.isTrainer));
         setIsConnected(true);
+        // Load slides for the session's week/day
+        loadSlideContent(data.session.weekNumber, data.session.dayNumber);
         wsService.off('session-joined', handleRejoin);
       };
       wsService.on('session-joined', handleRejoin);
@@ -94,11 +95,25 @@ export default function TraineeSessionView() {
     }
   };
 
-  const loadSlideContent = async () => {
-    // In production, this would load from the server based on week/day
-    // For now, using fallback content
+  const loadSlideContent = async (weekNum?: number, dayNum?: number) => {
+    const week = weekNum || session?.weekNumber || 1;
+    const day = dayNum || session?.dayNumber || 1;
+    
+    try {
+      // Try to load slides from the content folder
+      const slideFiles = await loadSlideFiles(week, day);
+      
+      if (slideFiles.length > 0) {
+        setSlideContents(slideFiles);
+        return;
+      }
+    } catch (err) {
+      console.error('Error loading slides:', err);
+    }
+    
+    // Fallback content if slides can't be loaded
     const fallbackSlides = [
-      `# Welcome to Today's Session\n\n**Follow along with your trainer**\n\nThe slides will sync automatically as your trainer presents.`,
+      `# Welcome to Week ${week}, Day ${day}\n\n**Follow along with your trainer**\n\nThe slides will sync automatically as your trainer presents.`,
       `# Slide 2\n\nContent synced from trainer`,
       `# Slide 3\n\nContent synced from trainer`,
       `# Slide 4\n\nContent synced from trainer`,
@@ -110,8 +125,39 @@ export default function TraineeSessionView() {
     setSlideContents(fallbackSlides);
   };
 
+  const loadSlideFiles = async (weekNum: number, dayNum: number): Promise<string[]> => {
+    const slides: string[] = [];
+    const weekFolder = `week-${String(weekNum).padStart(2, '0')}`;
+    const dayFolder = `day-${dayNum}`;
+    
+    // Try to load up to 10 slides
+    for (let i = 1; i <= 10; i++) {
+      try {
+        const response = await fetch(`/content/weeks/${weekFolder}/${dayFolder}/slides/slide-${i}.md`);
+        if (response.ok) {
+          const content = await response.text();
+          slides.push(content);
+        } else {
+          break; // No more slides
+        }
+      } catch {
+        break;
+      }
+    }
+    
+    return slides;
+  };
+
   const handleSlideChange = (data: any) => {
     setCurrentSlide(data.slideIndex);
+    // Also receive slide content if sent by trainer
+    if (data.slideContent) {
+      setSlideContents(prev => {
+        const newSlides = [...prev];
+        newSlides[data.slideIndex] = data.slideContent;
+        return newSlides;
+      });
+    }
   };
 
   const handleChatMessage = (data: any) => {
