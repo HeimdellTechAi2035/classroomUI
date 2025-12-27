@@ -163,6 +163,9 @@ export default function PresentationView() {
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
   const [showCameraSelector, setShowCameraSelector] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  
+  // WebRTC State for broadcasting camera to trainees
+  const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
 
   // WebSocket event handlers
   useEffect(() => {
@@ -172,6 +175,9 @@ export default function PresentationView() {
     wsService.on('participant-left', handleParticipantLeft);
     wsService.on('chat-message', handleWsChatMessage);
     wsService.on('disconnected', handleWsDisconnected);
+    // WebRTC signaling
+    wsService.on('webrtc-answer', handleWebRTCAnswer);
+    wsService.on('webrtc-ice-candidate', handleWebRTCIceCandidate);
     
     return () => {
       wsService.off('session-created', handleSessionCreated);
@@ -179,6 +185,11 @@ export default function PresentationView() {
       wsService.off('participant-left', handleParticipantLeft);
       wsService.off('chat-message', handleWsChatMessage);
       wsService.off('disconnected', handleWsDisconnected);
+      wsService.off('webrtc-answer', handleWebRTCAnswer);
+      wsService.off('webrtc-ice-candidate', handleWebRTCIceCandidate);
+      // Clean up peer connections
+      peerConnectionsRef.current.forEach(pc => pc.close());
+      peerConnectionsRef.current.clear();
     };
   }, []);
 
@@ -191,10 +202,22 @@ export default function PresentationView() {
 
   const handleParticipantJoined = (data: any) => {
     setWsParticipants(data.participants);
+    // If camera is enabled, create WebRTC connection for the new participant
+    if (cameraStream && data.newParticipant && !data.newParticipant.isTrainer) {
+      createPeerConnectionForTrainee(data.newParticipant.id);
+    }
   };
 
   const handleParticipantLeft = (data: any) => {
     setWsParticipants(data.participants);
+    // Clean up peer connection for the leaving participant
+    if (data.leftParticipantId) {
+      const pc = peerConnectionsRef.current.get(data.leftParticipantId);
+      if (pc) {
+        pc.close();
+        peerConnectionsRef.current.delete(data.leftParticipantId);
+      }
+    }
   };
 
   const handleWsChatMessage = (data: any) => {
@@ -203,6 +226,70 @@ export default function PresentationView() {
 
   const handleWsDisconnected = () => {
     setWsConnected(false);
+  };
+
+  // WebRTC handlers for trainer (receiving answers from trainees)
+  const handleWebRTCAnswer = (data: any) => {
+    const { answer, fromClientId } = data;
+    const pc = peerConnectionsRef.current.get(fromClientId);
+    if (pc) {
+      pc.setRemoteDescription(new RTCSessionDescription(answer));
+    }
+  };
+
+  const handleWebRTCIceCandidate = (data: any) => {
+    const { candidate, fromClientId } = data;
+    const pc = peerConnectionsRef.current.get(fromClientId);
+    if (pc && candidate) {
+      pc.addIceCandidate(new RTCIceCandidate(candidate));
+    }
+  };
+
+  // Create WebRTC peer connection to stream camera to a trainee
+  const createPeerConnectionForTrainee = async (traineeId: string) => {
+    if (!cameraStream) return;
+    
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    });
+    
+    peerConnectionsRef.current.set(traineeId, pc);
+    
+    // Add camera tracks to the connection
+    cameraStream.getTracks().forEach(track => {
+      pc.addTrack(track, cameraStream);
+    });
+    
+    // Handle ICE candidates
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        wsService.sendWebRTCIceCandidate(traineeId, event.candidate);
+      }
+    };
+    
+    // Create and send offer
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      wsService.sendWebRTCOffer(traineeId, offer);
+    } catch (err) {
+      console.error('Error creating WebRTC offer:', err);
+    }
+  };
+
+  // Broadcast camera to all existing participants when camera is turned on
+  const broadcastCameraToParticipants = () => {
+    if (!cameraStream) return;
+    wsParticipants.forEach(participant => {
+      if (!participant.isTrainer && !peerConnectionsRef.current.has(participant.id)) {
+        createPeerConnectionForTrainee(participant.id);
+      }
+    });
+    // Notify trainees that camera is on
+    wsService.sendTrainerCameraStatus(true);
   };
 
   const startLiveSession = async () => {
@@ -283,6 +370,12 @@ export default function PresentationView() {
       cameraStream.getTracks().forEach(track => track.stop());
       setCameraStream(null);
       setCameraEnabled(false);
+      // Close all peer connections and notify trainees
+      peerConnectionsRef.current.forEach(pc => pc.close());
+      peerConnectionsRef.current.clear();
+      if (isSessionActive) {
+        wsService.sendTrainerCameraStatus(false);
+      }
     } else {
       // Start camera with selected device
       try {
@@ -297,6 +390,17 @@ export default function PresentationView() {
         setCameraEnabled(true);
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+        }
+        // Broadcast camera to existing participants if session is active
+        if (isSessionActive) {
+          setTimeout(() => {
+            wsParticipants.forEach(participant => {
+              if (!participant.isTrainer) {
+                createPeerConnectionForTrainee(participant.id);
+              }
+            });
+            wsService.sendTrainerCameraStatus(true);
+          }, 500);
         }
       } catch (err) {
         console.error('Error accessing camera:', err);

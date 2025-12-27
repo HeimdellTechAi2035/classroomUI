@@ -256,6 +256,38 @@ class WebSocketService {
     });
   }
 
+  // WebRTC signaling methods
+  sendWebRTCOffer(targetClientId: string, offer: RTCSessionDescriptionInit): void {
+    this.send({
+      type: 'webrtc-offer',
+      targetClientId,
+      offer
+    });
+  }
+
+  sendWebRTCAnswer(targetClientId: string, answer: RTCSessionDescriptionInit): void {
+    this.send({
+      type: 'webrtc-answer',
+      targetClientId,
+      answer
+    });
+  }
+
+  sendWebRTCIceCandidate(targetClientId: string, candidate: RTCIceCandidate): void {
+    this.send({
+      type: 'webrtc-ice-candidate',
+      targetClientId,
+      candidate
+    });
+  }
+
+  sendTrainerCameraStatus(cameraOn: boolean): void {
+    this.send({
+      type: 'trainer-camera-status',
+      cameraOn
+    });
+  }
+
   // Getters
   getClientId(): string | null {
     return this.clientId;

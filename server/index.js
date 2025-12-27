@@ -259,6 +259,19 @@ function handleMessage(ws, clientId, message) {
     case 'ping':
       ws.send(JSON.stringify({ type: 'pong' }));
       break;
+    // WebRTC signaling
+    case 'webrtc-offer':
+      handleWebRTCOffer(ws, clientId, message);
+      break;
+    case 'webrtc-answer':
+      handleWebRTCAnswer(ws, clientId, message);
+      break;
+    case 'webrtc-ice-candidate':
+      handleWebRTCIceCandidate(ws, clientId, message);
+      break;
+    case 'trainer-camera-status':
+      handleTrainerCameraStatus(ws, clientId, message);
+      break;
     default:
       ws.send(JSON.stringify({ type: 'error', message: 'Unknown message type' }));
   }
@@ -390,6 +403,72 @@ function handleEndSession(ws, clientId, message) {
   setTimeout(() => {
     sessions.delete(clientInfo.roomCode);
   }, 5000);
+}
+
+// WebRTC signaling handlers
+function handleWebRTCOffer(ws, clientId, message) {
+  const clientInfo = clients.get(ws);
+  if (!clientInfo) return;
+  
+  // Forward the offer to the specific trainee
+  const { targetClientId, offer } = message;
+  
+  clients.forEach((info, clientWs) => {
+    if (info.clientId === targetClientId && clientWs.readyState === WebSocket.OPEN) {
+      clientWs.send(JSON.stringify({
+        type: 'webrtc-offer',
+        offer,
+        fromClientId: clientId
+      }));
+    }
+  });
+}
+
+function handleWebRTCAnswer(ws, clientId, message) {
+  const clientInfo = clients.get(ws);
+  if (!clientInfo) return;
+  
+  // Forward the answer to the trainer
+  const { targetClientId, answer } = message;
+  
+  clients.forEach((info, clientWs) => {
+    if (info.clientId === targetClientId && clientWs.readyState === WebSocket.OPEN) {
+      clientWs.send(JSON.stringify({
+        type: 'webrtc-answer',
+        answer,
+        fromClientId: clientId
+      }));
+    }
+  });
+}
+
+function handleWebRTCIceCandidate(ws, clientId, message) {
+  const clientInfo = clients.get(ws);
+  if (!clientInfo) return;
+  
+  const { targetClientId, candidate } = message;
+  
+  clients.forEach((info, clientWs) => {
+    if (info.clientId === targetClientId && clientWs.readyState === WebSocket.OPEN) {
+      clientWs.send(JSON.stringify({
+        type: 'webrtc-ice-candidate',
+        candidate,
+        fromClientId: clientId
+      }));
+    }
+  });
+}
+
+function handleTrainerCameraStatus(ws, clientId, message) {
+  const clientInfo = clients.get(ws);
+  if (!clientInfo || !clientInfo.isTrainer) return;
+  
+  // Broadcast camera status to all trainees in the room
+  broadcastToRoom(clientInfo.roomCode, {
+    type: 'trainer-camera-status',
+    cameraOn: message.cameraOn,
+    trainerId: clientId
+  }, ws);
 }
 
 function broadcastToRoom(roomCode, message, excludeWs = null) {
