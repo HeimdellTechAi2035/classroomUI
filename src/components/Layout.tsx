@@ -1,5 +1,5 @@
 import { ReactNode, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import {
   Home,
@@ -21,6 +21,7 @@ import {
   Sparkles,
   Zap,
   Shield,
+  LogOut,
 } from 'lucide-react';
 import AccessibilityPanel from './AccessibilityPanel';
 import Footer from './Footer';
@@ -40,9 +41,16 @@ const navItems = [
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { isOffline, aiEnabled, sessionStatus, accessibility } = useAppStore();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showAccessibility, setShowAccessibility] = useState(false);
+
+  const handleLogout = () => {
+    localStorage.removeItem('isTrainerAuthenticated');
+    localStorage.removeItem('trainerLoginTime');
+    navigate('/login');
+  };
 
   return (
     <div className="flex h-screen bg-calm-50">
@@ -178,6 +186,16 @@ export default function Layout({ children }: LayoutProps) {
             <Settings size={18} />
             {!sidebarCollapsed && <span className="text-sm">Settings</span>}
           </NavLink>
+
+          {/* Logout button */}
+          <button
+            onClick={handleLogout}
+            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-medium transition-all duration-200 text-danger-500 hover:bg-danger-50 hover:text-danger-600 ${sidebarCollapsed ? 'justify-center' : ''}`}
+            title={sidebarCollapsed ? 'Logout' : undefined}
+          >
+            <LogOut size={18} />
+            {!sidebarCollapsed && <span className="text-sm">Logout</span>}
+          </button>
         </div>
       </aside>
 
